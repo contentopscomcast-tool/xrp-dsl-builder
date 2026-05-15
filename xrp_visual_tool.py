@@ -211,16 +211,7 @@ with st.sidebar:
     <hr style="margin:0.75rem 0 1rem 0 !important;">
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="sidebar-card"><div class="sidebar-card-title">📋 Recommendation</div>', unsafe_allow_html=True)
-    selected_recommendation = st.text_input(
-        "Recommendation ID", value="XIT_AIQ_PREDICTIVE_WAN_SCORE",
-        help="Enter any recommendation name.",
-        label_visibility="collapsed"
-    )
-    selected_locale = st.selectbox("Language / Locale", ["en-US", "es-US"])
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="sidebar-card"><div class="sidebar-card-title">👤 Customer Profile</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-card"><div class="sidebar-card-title"> Customer Profile</div>', unsafe_allow_html=True)
     test_device_make = st.selectbox("Device Make", ["Samsung", "Apple"])
     test_device_os = st.selectbox("Device OS", ["Android", "iOS"])
     test_user_role = st.selectbox("User Role", ["PRIMARY", "SECONDARY", "RESTRICTED_SECONDARY", "MEMBER", "SIM", "MANAGER"])
@@ -257,11 +248,7 @@ test_show_line_level = "false"
 
 # ==================== HEADER ====================
 
-rec_data = RECOMMENDATIONS.get(selected_recommendation, {})
-rec_message = rec_data.get(selected_locale, "")
-rec_title = rec_data.get("title", "Custom Recommendation")
-
-st.markdown(f"""
+st.markdown("""
 <div class="header-banner">
     <div>
         <div style="margin-bottom:0.5rem;">
@@ -269,11 +256,6 @@ st.markdown(f"""
             <span class="header-badge">Visual Rule Engine</span>
         </div>
         <p class="header-sub">Build targeting rules visually &nbsp;·&nbsp; Generate DSL expressions &nbsp;·&nbsp; Test customer profiles</p>
-    </div>
-    <div style="margin-left:auto;text-align:right;">
-        <div style="color:rgba(255,255,255,0.5);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.8px;">Active Recommendation</div>
-        <div style="color:white;font-weight:600;font-size:0.95rem;margin-top:0.2rem;">{selected_recommendation}</div>
-        <div style="color:rgba(255,255,255,0.55);font-size:0.8rem;">{rec_title} &nbsp;·&nbsp; {selected_locale}</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -290,6 +272,22 @@ with tab1:
     col_main, col_preview = st.columns([3, 2], gap="large")
 
     with col_main:
+        # Recommendation inputs at the top of Build Rule tab
+        r1, r2 = st.columns([3, 1])
+        with r1:
+            selected_recommendation = st.text_input(
+                "Recommendation ID",
+                value="XIT_AIQ_PREDICTIVE_WAN_SCORE",
+                help="Enter any recommendation name."
+            )
+        with r2:
+            selected_locale = st.selectbox("Locale", ["en-US", "es-US"])
+
+        rec_data = RECOMMENDATIONS.get(selected_recommendation, {})
+        rec_message = rec_data.get(selected_locale, "")
+        rec_title = rec_data.get("title", "Custom Recommendation")
+
+        st.markdown("---")
         st.markdown('<div class="section-title">📋 Conditions</div>', unsafe_allow_html=True)
 
         with st.expander("📖 How to use the condition builder", expanded=False):
