@@ -219,15 +219,14 @@ selected_locale = st.sidebar.selectbox("Language", ["en-US", "es-US"])
 st.sidebar.subheader("👤 Customer Profile")
 test_device_make = st.sidebar.selectbox("Device Make", ["Samsung", "Apple"])
 test_device_os = st.sidebar.selectbox("Device OS", ["Android", "iOS"])
-test_user_role = st.sidebar.selectbox("User Role", ["PRIMARY", "SECONDARY", "RESTRICTED_SECONDARY", "MEMBER", "SIM"])
+test_user_role = st.sidebar.selectbox("User Role", ["PRIMARY", "SECONDARY", "RESTRICTED_SECONDARY", "MEMBER", "SIM", "MANAGER"])
 test_account_id = st.sidebar.text_input("Account ID")
 test_has_multiple = st.sidebar.selectbox("Multiple Accounts", ["true", "false"])
 test_audience = st.sidebar.text_input("Audience (e.g., HQ_Cust_XM_Income_Above50K_Legacy)")
 
-st.sidebar.subheader("⚙️ Rule Flags")
-test_internet_backup = st.sidebar.selectbox("Internet Backup On", ["false", "true"])
-test_power_backup = st.sidebar.selectbox("Power Backup On", ["false", "true"])
-test_show_line_level = st.sidebar.selectbox("Show Line Level Experience", ["false", "true"])
+test_internet_backup = "false"
+test_power_backup = "false"
+test_show_line_level = "false"
 
 # ==================== MAIN INTERFACE ====================
 
@@ -242,9 +241,6 @@ with col1:
     st.write(f"**Recommendation:** {selected_recommendation}")
 with col2:
     st.write(f"**Language:** {selected_locale}")
-
-if rec_message:
-    st.write(f"**Message Preview:** {rec_message}")
 
 st.markdown("---")
 st.header("📋 Build Conditions")
@@ -289,7 +285,9 @@ for i in range(num_conditions):
         operator = st.selectbox("Operator", ["is", "is not"], key=f"op_{i}")
 
     with col3:
-        available_values = FACT_VALUES.get(fact, ["Custom"])
+        available_values = list(FACT_VALUES.get(fact, ["Custom"]))
+        if fact == "Audience" and test_audience and test_audience not in available_values:
+            available_values = [test_audience] + available_values
         
         if len(available_values) == 1 and available_values[0] == "Custom":
             value = st.text_input("Value", key=f"val_{i}")
