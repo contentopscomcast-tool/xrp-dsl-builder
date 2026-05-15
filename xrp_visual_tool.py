@@ -242,6 +242,14 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
+    st.markdown("""
+    <div style="text-align:center;padding:1.25rem 0 0.5rem 0;border-top:1px solid #e2e8f0;margin-top:0.5rem;">
+        <div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:0.3rem;">Developed by</div>
+        <div style="font-weight:700;font-size:0.9rem;color:#1e293b;">Sakthivel Viswanathan</div>
+        <div style="font-size:0.75rem;color:#6366f1;font-weight:500;">Engineer II</div>
+    </div>
+    """, unsafe_allow_html=True)
+
 test_internet_backup = "false"
 test_power_backup = "false"
 test_show_line_level = "false"
