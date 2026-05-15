@@ -373,13 +373,29 @@ with tab1:
 
         st.markdown("---")
         st.markdown('<div class="section-title">📦 Payload</div>', unsafe_allow_html=True)
+
+        render_type_options = [
+            "secondary_message",
+            "primary_message",
+            "banner",
+            "card",
+            "modal",
+            "toast",
+            "inline",
+            "notification",
+            "Custom"
+        ]
+        selected_render_type = st.selectbox("Render Type", render_type_options, key="render_type")
+        if selected_render_type == "Custom":
+            selected_render_type = st.text_input("Enter custom render type", key="custom_render_type", placeholder="e.g. my_render_type", label_visibility="collapsed")
+
         try:
             payload_dsl = generate_dsl(conditions, logic) if conditions and all(v for _, _, v in conditions) else "No conditions defined"
         except ValueError:
             payload_dsl = "Invalid conditions"
         example_payload = {
             "resourceId": selected_recommendation,
-            "renderType": "secondary_message",
+            "renderType": selected_render_type,
             "locale": selected_locale,
             "message": rec_message if rec_message else "(Custom recommendation)",
             "dismissible": True,
