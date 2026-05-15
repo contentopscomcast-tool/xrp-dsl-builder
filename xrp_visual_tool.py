@@ -286,9 +286,18 @@ for i in range(num_conditions):
 
     with col3:
         available_values = list(FACT_VALUES.get(fact, ["Custom"]))
-        if fact == "Audience" and test_audience and test_audience not in available_values:
-            available_values = [test_audience] + available_values
-        
+        sidebar_fact_values = {
+            "Client Device Make": test_device_make,
+            "Client Device OS Name": test_device_os,
+            "User Role": test_user_role,
+            "Service Account ID": test_account_id,
+            "Has Multiple Accounts": test_has_multiple,
+            "Audience": test_audience,
+        }
+        sidebar_val = sidebar_fact_values.get(fact, "")
+        if sidebar_val and sidebar_val not in available_values:
+            available_values = [sidebar_val] + available_values
+
         if len(available_values) == 1 and available_values[0] == "Custom":
             value = st.text_input("Value", key=f"val_{i}")
         else:
