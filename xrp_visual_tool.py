@@ -1,30 +1,106 @@
 """
 XRP Visual Rule Builder - A Streamlit application for building targeting rules visually.
-
-This tool allows users to:
-- Define targeting conditions using a visual interface
-- Generate DSL (Domain-Specific Language) expressions
-- Test rules against customer profiles
-- Debug rule evaluation
-
-Features:
-- Type hints for better code maintainability
-- DRY principle: Eliminates code duplication
-- Error handling: Graceful error messages
-- Input validation: Validates empty values
 """
 
 from typing import List, Tuple, Dict, Optional
 import streamlit as st
 
-st.set_page_config(page_title="XRP Visual Rule Builder", layout="wide")
+st.set_page_config(
+    page_title="XRP DSL Builder",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-st.title("🚀 XRP Visual Rule Builder")
-st.markdown("Build targeting rules visually | Generate DSL expressions")
+# ==================== CUSTOM CSS ====================
+
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+
+.header-banner {
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    padding: 2rem 2.5rem; border-radius: 16px; margin-bottom: 1.75rem;
+}
+.header-title { color: white; font-size: 2rem; font-weight: 700; margin: 0 0 0.4rem 0; letter-spacing: -0.5px; }
+.header-sub { color: rgba(255,255,255,0.6); font-size: 0.9rem; margin: 0; }
+.header-badge {
+    display: inline-block;
+    background: linear-gradient(90deg, #e94560, #7b2ff7);
+    color: white; padding: 0.25rem 0.75rem; border-radius: 20px;
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; margin-left: 0.75rem; vertical-align: middle;
+}
+.section-title {
+    font-size: 1rem; font-weight: 700; color: #1e293b;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    padding-bottom: 0.5rem; border-bottom: 2px solid #6366f1;
+    margin-bottom: 1.25rem; display: inline-block;
+}
+.condition-row {
+    background: #fafbff; border: 1px solid #e2e8f0;
+    border-left: 4px solid #6366f1; border-radius: 10px;
+    padding: 0.85rem 1.1rem; margin-bottom: 0.75rem;
+    transition: box-shadow 0.2s ease;
+}
+.condition-row:hover { box-shadow: 0 4px 18px rgba(99,102,241,0.12); border-color: #6366f1; }
+.dsl-box {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 12px;
+    padding: 1.25rem 1.5rem; font-family: 'Courier New', monospace;
+    font-size: 0.88rem; color: #79c0ff; line-height: 1.7;
+    word-break: break-all; min-height: 60px;
+}
+.dsl-empty { color: #6e7681; font-style: italic; }
+.result-pass {
+    background: linear-gradient(135deg, #052e16, #064e3b);
+    border: 1px solid #22c55e; border-radius: 14px;
+    padding: 1.5rem 2rem; text-align: center; color: white; margin-bottom: 1.25rem;
+}
+.result-fail {
+    background: linear-gradient(135deg, #450a0a, #7f1d1d);
+    border: 1px solid #ef4444; border-radius: 14px;
+    padding: 1.5rem 2rem; text-align: center; color: white; margin-bottom: 1.25rem;
+}
+.result-icon { font-size: 2.5rem; margin-bottom: 0.3rem; }
+.result-title { font-size: 1.3rem; font-weight: 700; }
+.result-desc { font-size: 0.85rem; opacity: 0.75; margin-top: 0.25rem; }
+.debug-pass {
+    background: #f0fdf4; border-left: 3px solid #22c55e;
+    padding: 0.6rem 1rem; border-radius: 8px; margin-bottom: 0.4rem;
+    font-size: 0.875rem; color: #14532d;
+}
+.debug-fail {
+    background: #fef2f2; border-left: 3px solid #ef4444;
+    padding: 0.6rem 1rem; border-radius: 8px; margin-bottom: 0.4rem;
+    font-size: 0.875rem; color: #7f1d1d;
+}
+.pill { display: inline-block; padding: 0.3rem 0.9rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; margin-right: 0.5rem; }
+.pill-total { background: #e0e7ff; color: #3730a3; }
+.pill-pass  { background: #dcfce7; color: #15803d; }
+.pill-fail  { background: #fee2e2; color: #b91c1c; }
+.stButton > button {
+    background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+    color: white !important; border: none !important; border-radius: 10px !important;
+    padding: 0.65rem 2rem !important; font-weight: 600 !important;
+    font-size: 1rem !important; letter-spacing: 0.3px !important;
+    width: 100% !important; transition: all 0.2s !important;
+}
+.stButton > button:hover { transform: translateY(-1px) !important; box-shadow: 0 8px 24px rgba(99,102,241,0.45) !important; }
+section[data-testid="stSidebar"] { background: #f8faff !important; border-right: 1px solid #e2e8f0 !important; }
+.sidebar-card { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 0.85rem; }
+.sidebar-card-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #6366f1; margin-bottom: 0.6rem; }
+.stTabs [data-baseweb="tab-list"] { background: #f1f5f9; padding: 0.35rem 0.4rem; border-radius: 12px; gap: 0.35rem; }
+.stTabs [data-baseweb="tab"] { border-radius: 8px !important; font-weight: 500 !important; padding: 0.45rem 1.25rem !important; font-size: 0.9rem !important; }
+.stTabs [aria-selected="true"] { background: white !important; box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important; font-weight: 600 !important; }
+hr { border: none !important; border-top: 1px solid #e2e8f0 !important; margin: 1.5rem 0 !important; }
+</style>
+""", unsafe_allow_html=True)
+
 
 # ==================== CONFIGURATION ====================
 
-# Comcast Recommendations Catalog
 RECOMMENDATIONS: Dict[str, Dict[str, str]] = {
     "XIT_AIQ_PREDICTIVE_WAN_SCORE": {
         "title": "WiFi Alert",
@@ -38,41 +114,26 @@ RECOMMENDATIONS: Dict[str, Dict[str, str]] = {
     }
 }
 
-# Fact to DSL path mapping - from XRP Facts Catalog
 FACT_DSL_MAP: Dict[str, str] = {
-    # Client Facts (source "client")
     "Client Device Make": "facts.client.device.make",
     "Client Device Model": "facts.client.device.model",
     "Client Device OS Name": "facts.client.device.os.name",
     "Client Device OS Version": "facts.client.device.os.version",
     "Client Platform": "facts.client.platform",
     "Client App Version": "facts.client.version",
-    
-    # Service Account Facts
     "Service Account ID": "serviceAccount.id",
     "Service Account Partner": "serviceAccount.partner",
-    
-    # Authorization Identity Facts
     "User Role": "facts.auth.user_role",
     "Has Multiple Accounts": "facts.auth.has_multiple_accounts",
-    
-    # Rule Flags (feature toggles/business logic)
     "Internet Backup On": "rule.is_internet_backup_on",
     "Power Backup On": "rule.is_power_backup_on",
     "Show Line Level Experience": "rule.should_show_line_level_experience",
-    
-    # Audience Facts (dynamic, changes per card/stakeholder)
     "Audience": "facts.xcdp.realized",
-    
-    # Experiment Facts
     "Experiment Treatment": "experiment.{experiment_name}.treatment",
-    
-    # Channel Visitation Facts
     "Last Account Visit": "facts.visits_account.accessedOn",
     "Last Account2 Visit": "facts.visits_account2.accessedOn",
 }
 
-# Fact value options
 FACT_VALUES: Dict[str, List[str]] = {
     "Client Device Make": ["Samsung", "Apple"],
     "Client Device Model": ["SM-G955U", "iPhone", "Custom"],
@@ -80,91 +141,43 @@ FACT_VALUES: Dict[str, List[str]] = {
     "Client Device OS Version": ["Custom"],
     "Client Platform": ["MOBILE", "WEB"],
     "Client App Version": ["Custom"],
-    
     "Service Account ID": ["Custom"],
     "Service Account Partner": ["comcast", "Custom"],
-    
     "User Role": ["PRIMARY", "SECONDARY", "RESTRICTED_SECONDARY", "MEMBER", "SIM"],
     "Has Multiple Accounts": ["true", "false"],
-    
-    # Rule Flags
     "Internet Backup On": ["true", "false"],
     "Power Backup On": ["true", "false"],
     "Show Line Level Experience": ["true", "false"],
-    
-    # Audience examples (stakeholder-provided, changes per card)
     "Audience": ["HQ_Cust_XM_Income_Above50K_Legacy", "HQ_Cust_Digital_Soccer_Likely", "Custom"],
-    
     "Experiment Treatment": ["on", "off", "control", "Custom"],
-    
     "Last Account Visit": ["Custom"],
     "Last Account2 Visit": ["Custom"],
 }
 
+
 # ==================== UTILITY FUNCTIONS ====================
 
-def generate_dsl(
-    conditions: List[Tuple[str, str, str]], 
-    logic: str
-) -> str:
-    """
-    Generate DSL expression from visual conditions.
-    
-    Args:
-        conditions: List of (fact, operator, value) tuples
-        logic: Either "AND" or "OR" to combine conditions
-        
-    Returns:
-        DSL expression string, or empty string if no conditions
-        
-    Raises:
-        ValueError: If value is empty or invalid
-    """
+def generate_dsl(conditions: List[Tuple[str, str, str]], logic: str) -> str:
     if not conditions:
         return ""
-    
     dsl_parts = []
     for fact, operator, value in conditions:
         if not value or not value.strip():
-            raise ValueError(f"Empty value for fact '{fact}' - please fill in all values")
-            
+            raise ValueError(f"Empty value for fact '{fact}' — please fill in all values")
         dsl_path = FACT_DSL_MAP.get(fact, fact)
-        
-        # For rule flags (boolean facts), use negation syntax
         is_rule_flag = dsl_path.startswith("rule.")
         is_boolean_value = value.lower() in ["true", "false"]
-        
         if is_rule_flag and is_boolean_value:
-            # rule.flag_name for "is true"
-            # !rule.flag_name for "is not true"
-            if operator == "is not":
-                dsl_expr = f"!{dsl_path}"
-            else:
-                dsl_expr = dsl_path
+            dsl_expr = f"!{dsl_path}" if operator == "is not" else dsl_path
         else:
-            # Standard comparison for other facts
             dsl_operator = "==" if operator == "is" else "!="
-            formatted_value = f'"{value.strip()}"'
-            dsl_expr = f"{dsl_path} {dsl_operator} {formatted_value}"
-        
+            dsl_expr = f'{dsl_path} {dsl_operator} "{value.strip()}"'
         dsl_parts.append(dsl_expr)
-    
-    # Combine with logic operator
     logic_op = " && " if logic == "AND" else " || "
     return f"({logic_op.join(dsl_parts)})"
 
 
 def get_test_value_for_fact(fact: str, test_values: Dict[str, str]) -> str:
-    """
-    Get the actual test value for a specific fact.
-    
-    Args:
-        fact: The fact name to look up
-        test_values: Dictionary mapping fact types to test values
-        
-    Returns:
-        The test value, or a placeholder message if not found
-    """
     fact_map = {
         "Client Device Make": test_values.get("device_make"),
         "Client Device OS Name": test_values.get("device_os"),
@@ -179,113 +192,114 @@ def get_test_value_for_fact(fact: str, test_values: Dict[str, str]) -> str:
     return fact_map.get(fact, "N/A (not supported in test)")
 
 
-def evaluate_condition(
-    fact: str,
-    operator: str,
-    expected_value: str,
-    actual_value: str
-) -> bool:
-    """
-    Evaluate if a condition matches given values.
-    
-    Args:
-        fact: The fact being evaluated
-        operator: "is" or "is not"
-        expected_value: The expected value
-        actual_value: The actual value from test data
-        
-    Returns:
-        True if condition matches, False otherwise
-    """
+def evaluate_condition(fact: str, operator: str, expected_value: str, actual_value: str) -> bool:
     if actual_value.startswith("N/A"):
         return False
-    
     match = (actual_value == expected_value)
     return (not match) if operator == "is not" else match
 
 
-# ==================== SIDEBAR CONFIGURATION ====================
+# ==================== SIDEBAR ====================
 
-st.sidebar.header("🎯 Test Scenario")
+with st.sidebar:
+    st.markdown("""
+    <div style="text-align:center;padding:1rem 0 0.5rem 0;">
+        <div style="font-size:2rem;">⚡</div>
+        <div style="font-weight:700;font-size:1.1rem;color:#1e293b;">XRP DSL Builder</div>
+        <div style="font-size:0.75rem;color:#64748b;margin-top:0.2rem;">Test Scenario Configuration</div>
+    </div>
+    <hr style="margin:0.75rem 0 1rem 0 !important;">
+    """, unsafe_allow_html=True)
 
-st.sidebar.subheader("📋 Recommendation")
-selected_recommendation = st.sidebar.text_input(
-    "Recommendation Name (e.g., XIT_AIQ_PREDICTIVE_WAN_SCORE)",
-    value="XIT_AIQ_PREDICTIVE_WAN_SCORE",
-    help="Enter any recommendation name. New ones can be added anytime by stakeholders."
-)
-selected_locale = st.sidebar.selectbox("Language", ["en-US", "es-US"])
+    st.markdown('<div class="sidebar-card"><div class="sidebar-card-title">📋 Recommendation</div>', unsafe_allow_html=True)
+    selected_recommendation = st.text_input(
+        "Recommendation ID", value="XIT_AIQ_PREDICTIVE_WAN_SCORE",
+        help="Enter any recommendation name.",
+        label_visibility="collapsed"
+    )
+    selected_locale = st.selectbox("Language / Locale", ["en-US", "es-US"])
+    st.markdown('</div>', unsafe_allow_html=True)
 
-st.sidebar.subheader("👤 Customer Profile")
-test_device_make = st.sidebar.selectbox("Device Make", ["Samsung", "Apple"])
-test_device_os = st.sidebar.selectbox("Device OS", ["Android", "iOS"])
-test_user_role = st.sidebar.selectbox("User Role", ["PRIMARY", "SECONDARY", "RESTRICTED_SECONDARY", "MEMBER", "SIM", "MANAGER"])
-test_account_id = st.sidebar.text_input("Account ID")
-test_has_multiple = st.sidebar.selectbox("Multiple Accounts", ["true", "false"])
-test_audience = st.sidebar.text_input("Audience (e.g., HQ_Cust_XM_Income_Above50K_Legacy)")
+    st.markdown('<div class="sidebar-card"><div class="sidebar-card-title">👤 Customer Profile</div>', unsafe_allow_html=True)
+    test_device_make = st.selectbox("Device Make", ["Samsung", "Apple"])
+    test_device_os = st.selectbox("Device OS", ["Android", "iOS"])
+    test_user_role = st.selectbox("User Role", ["PRIMARY", "SECONDARY", "RESTRICTED_SECONDARY", "MEMBER", "SIM", "MANAGER"])
+    test_account_id = st.text_input("Account ID", placeholder="Enter account ID...")
+    test_has_multiple = st.selectbox("Multiple Accounts", ["true", "false"])
+    test_audience = st.text_input("Audience Segment", placeholder="e.g. HQ_Cust_XM_Income_Above50K_Legacy")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    audience_display = test_audience if test_audience else '<i style="color:#94a3b8">Not set</i>'
+    st.markdown(f"""
+    <div class="sidebar-card" style="background:#f0f9ff;border-color:#bae6fd;">
+        <div class="sidebar-card-title" style="color:#0284c7;">📊 Active Profile</div>
+        <div style="font-size:0.8rem;color:#334155;line-height:1.8;">
+            <b>Device:</b> {test_device_make} · {test_device_os}<br>
+            <b>Role:</b> {test_user_role}<br>
+            <b>Multi-Account:</b> {test_has_multiple}<br>
+            <b>Audience:</b> {audience_display}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 test_internet_backup = "false"
 test_power_backup = "false"
 test_show_line_level = "false"
 
-# ==================== MAIN INTERFACE ====================
 
-st.header("🧩 Build Rule Visually")
+# ==================== HEADER ====================
 
-# Display recommendation preview
 rec_data = RECOMMENDATIONS.get(selected_recommendation, {})
 rec_message = rec_data.get(selected_locale, "")
+rec_title = rec_data.get("title", "Custom Recommendation")
 
-col1, col2 = st.columns(2)
-with col1:
-    st.write(f"**Recommendation:** {selected_recommendation}")
-with col2:
-    st.write(f"**Language:** {selected_locale}")
+st.markdown(f"""
+<div class="header-banner">
+    <div>
+        <div style="margin-bottom:0.5rem;">
+            <span class="header-title">⚡ XRP DSL Builder</span>
+            <span class="header-badge">Visual Rule Engine</span>
+        </div>
+        <p class="header-sub">Build targeting rules visually &nbsp;·&nbsp; Generate DSL expressions &nbsp;·&nbsp; Test customer profiles</p>
+    </div>
+    <div style="margin-left:auto;text-align:right;">
+        <div style="color:rgba(255,255,255,0.5);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.8px;">Active Recommendation</div>
+        <div style="color:white;font-weight:600;font-size:0.95rem;margin-top:0.2rem;">{selected_recommendation}</div>
+        <div style="color:rgba(255,255,255,0.55);font-size:0.8rem;">{rec_title} &nbsp;·&nbsp; {selected_locale}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-st.markdown("---")
-st.header("📋 Build Conditions")
 
-with st.expander("📖 How to Build Your Expression", expanded=False):
-    st.markdown("""
-    **Example:** `facts.xcdp.realized == "HQ_Cust_Digital_Soccer_Likely" && !rule.is_internet_backup_on && !rule.is_power_backup_on && facts.auth.user_role == "PRIMARY"`
-    
-    **Step-by-step:**
-    1. **Condition 1:** Audience `is` "HQ_Cust_Digital_Soccer_Likely"
-    2. **Condition 2:** Internet Backup On `is not` true → generates `!rule.is_internet_backup_on`
-    3. **Condition 3:** Power Backup On `is not` true → generates `!rule.is_power_backup_on`
-    4. **Condition 4:** User Role `is` "PRIMARY"
-    5. **Combine with:** AND (&&)
-    
-    **Key Rules:**
-    - **Boolean facts** (rule flags): Use "is" for true, "is not" for false (generates negation `!`)
-    - **String facts**: Use "is" for ==, "is not" for !=
-    - **AND/OR**: Combine multiple conditions with logic operator
-    """)
+# ==================== TABS ====================
 
-# Build conditions UI
-conditions = []
-num_conditions = st.slider("How many conditions?", 1, 5, 1)
+tab1, tab2 = st.tabs(["🧩  Build Rule", "▶  Evaluate & Test"])
 
-for i in range(num_conditions):
-    col1, col2, col3 = st.columns(3)
 
-    with col1:
-        fact_options = list(FACT_DSL_MAP.keys()) + ["Custom"]
-        fact_selection = st.selectbox(
-            f"Fact {i+1}",
-            fact_options,
-            key=f"fact_{i}"
-        )
-        if fact_selection == "Custom":
-            fact = st.text_input("Enter custom fact path (e.g. facts.custom.field)", key=f"custom_fact_{i}", label_visibility="collapsed")
-        else:
-            fact = fact_selection
+# ==================== TAB 1: BUILD RULE ====================
 
-    with col2:
-        operator = st.selectbox("Operator", ["is", "is not"], key=f"op_{i}")
+with tab1:
+    col_main, col_preview = st.columns([3, 2], gap="large")
 
-    with col3:
-        available_values = list(FACT_VALUES.get(fact, ["Custom"]))
+    with col_main:
+        st.markdown('<div class="section-title">📋 Conditions</div>', unsafe_allow_html=True)
+
+        with st.expander("📖 How to use the condition builder", expanded=False):
+            st.markdown("""
+**Example output:** `(facts.xcdp.realized == "HQ_Cust_Digital_Soccer_Likely" && facts.auth.user_role == "PRIMARY")`
+
+| Fact | Operator | Value | DSL Output |
+|---|---|---|---|
+| Audience | is | HQ_Cust_Digital_Soccer_Likely | `facts.xcdp.realized == "..."` |
+| Internet Backup On | is not | true | `!rule.is_internet_backup_on` |
+| User Role | is | PRIMARY | `facts.auth.user_role == "PRIMARY"` |
+
+**Tip:** Use `AND` to require all conditions, `OR` to require any one.
+            """)
+
+        num_conditions = st.slider("Number of conditions", min_value=1, max_value=8, value=1)
+
+        conditions = []
         sidebar_fact_values = {
             "Client Device Make": test_device_make,
             "Client Device OS Name": test_device_os,
@@ -294,106 +308,172 @@ for i in range(num_conditions):
             "Has Multiple Accounts": test_has_multiple,
             "Audience": test_audience,
         }
-        sidebar_val = sidebar_fact_values.get(fact, "")
-        if sidebar_val and sidebar_val not in available_values:
-            available_values = [sidebar_val] + available_values
 
-        if len(available_values) == 1 and available_values[0] == "Custom":
-            value = st.text_input("Value", key=f"val_{i}")
-        else:
-            options = available_values + (["Custom"] if "Custom" not in available_values else [])
-            selected = st.selectbox("Value", options, key=f"val_{i}")
-            
-            if selected == "Custom":
-                value = st.text_input("Enter custom value", key=f"custom_val_{i}", label_visibility="collapsed")
-            else:
-                value = selected
+        for i in range(num_conditions):
+            st.markdown(f'<div class="condition-row">', unsafe_allow_html=True)
+            c1, c2, c3 = st.columns([2, 1, 2])
+            with c1:
+                st.caption(f"CONDITION {i+1} — FACT")
+                fact_options = list(FACT_DSL_MAP.keys()) + ["Custom"]
+                fact_selection = st.selectbox("Fact", fact_options, key=f"fact_{i}", label_visibility="collapsed")
+                if fact_selection == "Custom":
+                    fact = st.text_input("Custom fact path", key=f"custom_fact_{i}", placeholder="facts.custom.field", label_visibility="collapsed")
+                else:
+                    fact = fact_selection
+            with c2:
+                st.caption("OPERATOR")
+                operator = st.selectbox("Operator", ["is", "is not"], key=f"op_{i}", label_visibility="collapsed")
+            with c3:
+                st.caption("VALUE")
+                available_values = list(FACT_VALUES.get(fact, ["Custom"]))
+                sidebar_val = sidebar_fact_values.get(fact, "")
+                if sidebar_val and sidebar_val not in available_values:
+                    available_values = [sidebar_val] + available_values
+                if len(available_values) == 1 and available_values[0] == "Custom":
+                    value = st.text_input("Value", key=f"val_{i}", placeholder="Enter value...", label_visibility="collapsed")
+                else:
+                    options = available_values + (["Custom"] if "Custom" not in available_values else [])
+                    selected = st.selectbox("Value", options, key=f"val_{i}", label_visibility="collapsed")
+                    if selected == "Custom":
+                        value = st.text_input("Custom value", key=f"custom_val_{i}", placeholder="Enter custom value...", label_visibility="collapsed")
+                    else:
+                        value = selected
+            conditions.append((fact, operator, value))
+            st.markdown('</div>', unsafe_allow_html=True)
 
-    conditions.append((fact, operator, value))
+        st.markdown("---")
+        logic = st.radio("Combine conditions with:", ["AND", "OR"], horizontal=True,
+                         help="AND = all conditions must match | OR = any condition must match")
 
-logic = st.radio("Combine conditions using:", ["AND", "OR"])
-
-st.markdown("---")
-
-# ==================== RULE EVALUATION ====================
-
-if st.button("▶ Run Rule Check"):
-    st.subheader("🔍 Rule Evaluation")
-
-    try:
-        # Prepare test values dictionary
-        test_values_dict = {
-            "device_make": test_device_make,
-            "device_os": test_device_os,
-            "user_role": test_user_role,
-            "account_id": test_account_id,
-            "has_multiple": test_has_multiple,
-            "audience": test_audience,
-            "internet_backup": test_internet_backup,
-            "power_backup": test_power_backup,
-            "show_line_level": test_show_line_level,
-        }
-
-        # Evaluate all conditions
-        results = []
-        debug_info = []
-        
-        for fact, operator, value in conditions:
-            actual_value = get_test_value_for_fact(fact, test_values_dict)
-            match = evaluate_condition(fact, operator, value, actual_value)
-            results.append(match)
-            debug_info.append((fact, operator, value, actual_value, match))
-
-        # Calculate final result based on logic
-        if logic == "AND":
-            final_result = all(results) if results else False
-        else:
-            final_result = any(results) if results else False
-
-        # Display result with visual feedback
-        if final_result:
-            st.success("✅ RULE MATCHED → Card WILL SHOW")
-        else:
-            st.error("❌ RULE FAILED → Card WILL NOT SHOW")
-
-        # Display generated DSL expression
-        st.markdown("### 📄 Generated DSL Expression")
+    with col_preview:
+        st.markdown('<div class="section-title">⚡ Live DSL Preview</div>', unsafe_allow_html=True)
         try:
-            dsl_expr = generate_dsl(conditions, logic)
-            st.code(dsl_expr, language="javascript")
-        except ValueError as e:
-            st.error(f"⚠️ Error generating DSL: {str(e)}")
+            live_dsl = generate_dsl(conditions, logic)
+            if live_dsl:
+                st.markdown(f'<div class="dsl-box">{live_dsl}</div>', unsafe_allow_html=True)
+                st.markdown("**Condition Breakdown**")
+                for i, (f, op, v) in enumerate(conditions):
+                    dsl_path = FACT_DSL_MAP.get(f, f)
+                    is_flag = dsl_path.startswith("rule.")
+                    if is_flag and v.lower() in ["true", "false"]:
+                        expr = f"!{dsl_path}" if op == "is not" else dsl_path
+                    else:
+                        expr = f'{dsl_path} {"==" if op == "is" else "!="} "{v}"'
+                    st.markdown(f"`{i+1}.` `{expr}`")
+            else:
+                st.markdown('<div class="dsl-box"><span class="dsl-empty">DSL will appear here as you build conditions...</span></div>', unsafe_allow_html=True)
+        except ValueError:
+            st.markdown('<div class="dsl-box"><span class="dsl-empty">Fill in all values to see DSL preview...</span></div>', unsafe_allow_html=True)
 
-        # Display detailed debug information
-        st.markdown("### 🛠️ Debug Details")
-        for i, (fact, operator, value, actual, matched) in enumerate(debug_info):
-            status = "✅" if matched else "❌"
-            st.write(f"{status} **Condition {i+1}:** {fact} {operator} '{value}' | Actual: '{actual}'")
-    
-    except Exception as e:
-        st.error(f"❌ Unexpected error: {str(e)}")
-        st.info("💡 Tip: Make sure all condition values are filled in before running.")
+        st.markdown("---")
+        st.markdown('<div class="section-title">📦 Payload</div>', unsafe_allow_html=True)
+        try:
+            payload_dsl = generate_dsl(conditions, logic) if conditions and all(v for _, _, v in conditions) else "No conditions defined"
+        except ValueError:
+            payload_dsl = "Invalid conditions"
+        example_payload = {
+            "resourceId": selected_recommendation,
+            "renderType": "secondary_message",
+            "locale": selected_locale,
+            "message": rec_message if rec_message else "(Custom recommendation)",
+            "dismissible": True,
+            "ruleConditions": payload_dsl
+        }
+        st.json(example_payload)
 
-st.markdown("---")
 
-# ==================== PAYLOAD GENERATION ====================
+# ==================== TAB 2: EVALUATE ====================
 
-st.subheader("📦 Recommendation Payload Example")
-try:
-    payload_dsl = generate_dsl(conditions, logic) if conditions and all(v for _, _, v in conditions) else "No conditions defined"
-except ValueError:
-    payload_dsl = "Invalid conditions (empty values)"
+with tab2:
+    st.markdown('<div class="section-title">▶ Rule Evaluation</div>', unsafe_allow_html=True)
 
-example_payload = {
-    "resourceId": selected_recommendation,
-    "renderType": "secondary_message",
-    "locale": selected_locale,
-    "message": rec_message if rec_message else "(Custom recommendation)",
-    "dismissible": True,
-    "ruleConditions": payload_dsl
-}
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        st.info(f"**Device:** {test_device_make} · {test_device_os}")
+    with col_b:
+        st.info(f"**Role:** {test_user_role} · Multi: {test_has_multiple}")
+    with col_c:
+        st.info(f"**Audience:** {test_audience if test_audience else 'Not set'}")
 
-st.json(example_payload)
+    st.markdown("")
+    run_clicked = st.button("▶  Run Rule Check", use_container_width=True)
 
-st.markdown("---")
-st.info("💡 **Tip:** Use this tool to debug production issues like 'Card not showing to customer' or 'Wrong audience seeing card'")
+    if run_clicked:
+        st.markdown("---")
+        try:
+            test_values_dict = {
+                "device_make": test_device_make,
+                "device_os": test_device_os,
+                "user_role": test_user_role,
+                "account_id": test_account_id,
+                "has_multiple": test_has_multiple,
+                "audience": test_audience,
+                "internet_backup": test_internet_backup,
+                "power_backup": test_power_backup,
+                "show_line_level": test_show_line_level,
+            }
+            results = []
+            debug_info = []
+            for fact, operator, value in conditions:
+                actual_value = get_test_value_for_fact(fact, test_values_dict)
+                match = evaluate_condition(fact, operator, value, actual_value)
+                results.append(match)
+                debug_info.append((fact, operator, value, actual_value, match))
+
+            final_result = (all(results) if logic == "AND" else any(results)) if results else False
+            pass_count = sum(results)
+            fail_count = len(results) - pass_count
+
+            col_res, col_meta = st.columns([2, 1])
+            with col_res:
+                if final_result:
+                    st.markdown("""<div class="result-pass">
+                        <div class="result-icon">✅</div>
+                        <div class="result-title">RULE MATCHED</div>
+                        <div class="result-desc">Card WILL be shown to this customer profile</div>
+                    </div>""", unsafe_allow_html=True)
+                else:
+                    st.markdown("""<div class="result-fail">
+                        <div class="result-icon">❌</div>
+                        <div class="result-title">RULE FAILED</div>
+                        <div class="result-desc">Card WILL NOT be shown to this customer profile</div>
+                    </div>""", unsafe_allow_html=True)
+
+            with col_meta:
+                st.markdown(f"""
+                <div style="padding:1rem;background:#f8faff;border:1px solid #e2e8f0;border-radius:12px;text-align:center;">
+                    <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:0.75rem;">Summary</div>
+                    <span class="pill pill-total">{len(results)} Total</span><br><br>
+                    <span class="pill pill-pass">✓ {pass_count} Passed</span>&nbsp;
+                    <span class="pill pill-fail">✗ {fail_count} Failed</span>
+                </div>""", unsafe_allow_html=True)
+
+            st.markdown("##### 📄 Generated DSL")
+            try:
+                dsl_expr = generate_dsl(conditions, logic)
+                st.code(dsl_expr, language="javascript")
+            except ValueError as e:
+                st.error(f"⚠️ {str(e)}")
+
+            st.markdown("##### 🔍 Condition Debug")
+            for i, (fact, operator, value, actual, matched) in enumerate(debug_info):
+                css_class = "debug-pass" if matched else "debug-fail"
+                icon = "✅" if matched else "❌"
+                st.markdown(
+                    f'<div class="{css_class}">{icon} &nbsp; <b>#{i+1} {fact}</b> &nbsp; '
+                    f'<span style="opacity:0.75">{operator}</span> &nbsp; '
+                    f'<code>"{value}"</code> &nbsp;|&nbsp; Actual: <code>"{actual}"</code></div>',
+                    unsafe_allow_html=True
+                )
+
+        except Exception as e:
+            st.error(f"❌ Unexpected error: {str(e)}")
+            st.info("💡 Make sure all condition values are filled in before running.")
+    else:
+        st.markdown("""
+        <div style="text-align:center;padding:3rem 1rem;color:#94a3b8;">
+            <div style="font-size:3rem;margin-bottom:0.75rem;">🎯</div>
+            <div style="font-weight:600;font-size:1rem;color:#64748b;">Ready to evaluate</div>
+            <div style="font-size:0.85rem;margin-top:0.4rem;">Build your conditions in the <b>Build Rule</b> tab, then click <b>Run Rule Check</b></div>
+        </div>
+        """, unsafe_allow_html=True)
