@@ -263,7 +263,7 @@ st.markdown("""
 
 # ==================== TABS ====================
 
-tab1, tab2 = st.tabs(["🧩  Build Rule", "▶  Evaluate & Test"])
+tab1, = st.tabs(["🧩  Build Rule"])
 
 
 # ==================== TAB 1: BUILD RULE ====================
@@ -388,11 +388,9 @@ with tab1:
         st.json(example_payload)
 
 
-# ==================== TAB 2: EVALUATE ====================
+# ==================== EVALUATE (COLLAPSED) ====================
 
-with tab2:
-    st.markdown('<div class="section-title">▶ Rule Evaluation</div>', unsafe_allow_html=True)
-
+with st.expander("▶  Evaluate & Debug (optional)", expanded=False):
     col_a, col_b, col_c = st.columns(3)
     with col_a:
         st.info(f"**Device:** {test_device_make} · {test_device_os}")
@@ -475,11 +473,3 @@ with tab2:
         except Exception as e:
             st.error(f"❌ Unexpected error: {str(e)}")
             st.info("💡 Make sure all condition values are filled in before running.")
-    else:
-        st.markdown("""
-        <div style="text-align:center;padding:3rem 1rem;color:#94a3b8;">
-            <div style="font-size:3rem;margin-bottom:0.75rem;">🎯</div>
-            <div style="font-weight:600;font-size:1rem;color:#64748b;">Ready to evaluate</div>
-            <div style="font-size:0.85rem;margin-top:0.4rem;">Build your conditions in the <b>Build Rule</b> tab, then click <b>Run Rule Check</b></div>
-        </div>
-        """, unsafe_allow_html=True)
