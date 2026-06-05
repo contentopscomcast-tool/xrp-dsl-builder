@@ -20,71 +20,74 @@ st.markdown("""
 
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
+.block-container { padding-top: 2.5rem !important; padding-bottom: 0.5rem !important; }
+
 .header-banner {
-    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-    padding: 2rem 2.5rem; border-radius: 16px; margin-bottom: 1.75rem;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 40%, #7c3aed 100%);
+    padding: 0.9rem 1.5rem; border-radius: 14px; margin-bottom: 0.85rem;
+    box-shadow: 0 4px 20px rgba(99,102,241,0.35);
 }
-.header-title { color: white; font-size: 2rem; font-weight: 700; margin: 0 0 0.4rem 0; letter-spacing: -0.5px; }
-.header-sub { color: rgba(255,255,255,0.6); font-size: 0.9rem; margin: 0; }
+.header-title { color: white; font-size: 1.4rem; font-weight: 700; margin: 0; letter-spacing: -0.3px; }
+.header-sub { color: rgba(255,255,255,0.75); font-size: 0.8rem; margin: 0.2rem 0 0 0; }
 .header-badge {
     display: inline-block;
     background: linear-gradient(90deg, #e94560, #7b2ff7);
-    color: white; padding: 0.25rem 0.75rem; border-radius: 20px;
-    font-size: 0.72rem; font-weight: 700; letter-spacing: 1px;
-    text-transform: uppercase; margin-left: 0.75rem; vertical-align: middle;
+    color: white; padding: 0.2rem 0.65rem; border-radius: 20px;
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; margin-left: 0.65rem; vertical-align: middle;
 }
 .section-title {
-    font-size: 1rem; font-weight: 700; color: #1e293b;
+    font-size: 0.9rem; font-weight: 700; color: #1e293b;
     text-transform: uppercase; letter-spacing: 0.8px;
-    padding-bottom: 0.5rem; border-bottom: 2px solid #6366f1;
-    margin-bottom: 1.25rem; display: inline-block;
+    padding-bottom: 0.3rem; border-bottom: 2px solid #6366f1;
+    margin-bottom: 0.75rem; display: inline-block;
 }
 .condition-row {
     background: #fafbff; border: 1px solid #e2e8f0;
     border-left: 4px solid #6366f1; border-radius: 10px;
-    padding: 0.85rem 1.1rem; margin-bottom: 0.75rem;
+    padding: 0.55rem 0.85rem; margin-bottom: 0.4rem;
     transition: box-shadow 0.2s ease;
 }
 .condition-row:hover { box-shadow: 0 4px 18px rgba(99,102,241,0.12); border-color: #6366f1; }
 .dsl-box {
     background: #0d1117; border: 1px solid #30363d; border-radius: 12px;
-    padding: 1.25rem 1.5rem; font-family: 'Courier New', monospace;
-    font-size: 0.88rem; color: #79c0ff; line-height: 1.7;
-    word-break: break-all; min-height: 60px;
+    padding: 0.85rem 1rem; font-family: 'Courier New', monospace;
+    font-size: 0.85rem; color: #79c0ff; line-height: 1.6;
+    word-break: break-all; min-height: 50px;
 }
 .dsl-empty { color: #6e7681; font-style: italic; }
 .result-pass {
     background: linear-gradient(135deg, #052e16, #064e3b);
     border: 1px solid #22c55e; border-radius: 14px;
-    padding: 1.5rem 2rem; text-align: center; color: white; margin-bottom: 1.25rem;
+    padding: 0.9rem 1.25rem; text-align: center; color: white; margin-bottom: 0.75rem;
 }
 .result-fail {
     background: linear-gradient(135deg, #450a0a, #7f1d1d);
     border: 1px solid #ef4444; border-radius: 14px;
-    padding: 1.5rem 2rem; text-align: center; color: white; margin-bottom: 1.25rem;
+    padding: 0.9rem 1.25rem; text-align: center; color: white; margin-bottom: 0.75rem;
 }
-.result-icon { font-size: 2.5rem; margin-bottom: 0.3rem; }
-.result-title { font-size: 1.3rem; font-weight: 700; }
-.result-desc { font-size: 0.85rem; opacity: 0.75; margin-top: 0.25rem; }
+.result-icon { font-size: 2rem; margin-bottom: 0.2rem; }
+.result-title { font-size: 1.2rem; font-weight: 700; }
+.result-desc { font-size: 0.82rem; opacity: 0.75; margin-top: 0.15rem; }
 .debug-pass {
     background: #f0fdf4; border-left: 3px solid #22c55e;
-    padding: 0.6rem 1rem; border-radius: 8px; margin-bottom: 0.4rem;
-    font-size: 0.875rem; color: #14532d;
+    padding: 0.35rem 0.75rem; border-radius: 8px; margin-bottom: 0.25rem;
+    font-size: 0.85rem; color: #14532d;
 }
 .debug-fail {
     background: #fef2f2; border-left: 3px solid #ef4444;
-    padding: 0.6rem 1rem; border-radius: 8px; margin-bottom: 0.4rem;
-    font-size: 0.875rem; color: #7f1d1d;
+    padding: 0.35rem 0.75rem; border-radius: 8px; margin-bottom: 0.25rem;
+    font-size: 0.85rem; color: #7f1d1d;
 }
-.pill { display: inline-block; padding: 0.3rem 0.9rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; margin-right: 0.5rem; }
+.pill { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.78rem; font-weight: 600; margin-right: 0.4rem; }
 .pill-total { background: #e0e7ff; color: #3730a3; }
 .pill-pass  { background: #dcfce7; color: #15803d; }
 .pill-fail  { background: #fee2e2; color: #b91c1c; }
 .stButton > button {
     background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
     color: white !important; border: none !important; border-radius: 10px !important;
-    padding: 0.55rem 1rem !important; font-weight: 600 !important;
-    font-size: 0.9rem !important; letter-spacing: 0.3px !important;
+    padding: 0.4rem 0.85rem !important; font-weight: 600 !important;
+    font-size: 0.88rem !important; letter-spacing: 0.3px !important;
     width: 100% !important; transition: all 0.2s !important;
     white-space: nowrap !important; text-align: center !important;
     display: flex !important; align-items: center !important; justify-content: center !important;
@@ -96,12 +99,12 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 }
 .stButton > button:hover { transform: translateY(-1px) !important; box-shadow: 0 8px 24px rgba(99,102,241,0.45) !important; }
 section[data-testid="stSidebar"] { background: #f8faff !important; border-right: 1px solid #e2e8f0 !important; }
-.sidebar-card { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 0.85rem; }
-.sidebar-card-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #6366f1; margin-bottom: 0.6rem; }
-.stTabs [data-baseweb="tab-list"] { background: #f1f5f9; padding: 0.35rem 0.4rem; border-radius: 12px; gap: 0.35rem; }
-.stTabs [data-baseweb="tab"] { border-radius: 8px !important; font-weight: 500 !important; padding: 0.45rem 1.25rem !important; font-size: 0.9rem !important; }
+.sidebar-card { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.6rem 0.85rem; margin-bottom: 0.5rem; }
+.sidebar-card-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #6366f1; margin-bottom: 0.4rem; }
+.stTabs [data-baseweb="tab-list"] { background: #f1f5f9; padding: 0.25rem 0.3rem; border-radius: 12px; gap: 0.25rem; }
+.stTabs [data-baseweb="tab"] { border-radius: 8px !important; font-weight: 500 !important; padding: 0.35rem 1rem !important; font-size: 0.88rem !important; }
 .stTabs [aria-selected="true"] { background: white !important; box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important; font-weight: 600 !important; }
-hr { border: none !important; border-top: 1px solid #e2e8f0 !important; margin: 1.5rem 0 !important; }
+hr { border: none !important; border-top: 1px solid #e2e8f0 !important; margin: 0.6rem 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -136,6 +139,12 @@ FACT_DSL_MAP: Dict[str, str] = {
     "Internet Backup On": "rule.is_internet_backup_on",
     "Power Backup On": "rule.is_power_backup_on",
     "Show Line Level Experience": "rule.should_show_line_level_experience",
+    "EDP Auto Optimization": "rule.edp_state_features_auto_optimization",
+    "Disconnected Customer": "rule.is_disconnected_customer",
+    "Has GW Device": "rule.has_gw_device",
+    "Bridge Mode Enabled": "rule.is_bridge_mode_enabled",
+    "Device Priority Capable": "rule.device_priority_capable",
+    "Permission: Device Prioritization View": "facts.permissions.device_prioritization.view",
     "Audience": "facts.xcdp.realized",
     "Experiment Treatment": "experiment.{experiment_name}.treatment",
     "Last Account Visit": "facts.visits_account.accessedOn",
@@ -156,6 +165,12 @@ FACT_VALUES: Dict[str, List[str]] = {
     "Internet Backup On": ["true", "false"],
     "Power Backup On": ["true", "false"],
     "Show Line Level Experience": ["true", "false"],
+    "EDP Auto Optimization": ["true", "false"],
+    "Disconnected Customer": ["true", "false"],
+    "Has GW Device": ["true", "false"],
+    "Bridge Mode Enabled": ["true", "false"],
+    "Device Priority Capable": ["true", "false"],
+    "Permission: Device Prioritization View": ["true", "false"],
     "Audience": ["HQ_Cust_XM_Income_Above50K_Legacy", "HQ_Cust_Digital_Soccer_Likely", "Custom"],
     "Experiment Treatment": ["on", "off", "control", "Custom"],
     "Last Account Visit": ["Custom"],
@@ -172,6 +187,11 @@ COMPARISON_OP_MAP: Dict[str, str] = {
     "at most (<=)": "<=",
     "above (>)":    ">",
     "below (<)":    "<",
+}
+
+# Fact DSL paths that behave as boolean flags (truthy/falsy) but don't start with "rule."
+TRUTHY_FACTS: set = {
+    "facts.permissions.device_prioritization.view",
 }
 
 
@@ -206,7 +226,7 @@ def generate_dsl(conditions: List[Tuple[str, str, str, str]], logic: Union[str, 
             bool_val = "false" if operator == "is not" else "true"
             dsl_expr = f'toArray({", ".join(full_paths)}) == {bool_val}'
         else:
-            is_rule_flag = dsl_path.startswith("rule.")
+            is_rule_flag = dsl_path.startswith("rule.") or dsl_path in TRUTHY_FACTS or dsl_path.startswith("facts.permissions.")
             is_boolean_value = value.lower() in ["true", "false"]
             if is_rule_flag and is_boolean_value:
                 dsl_expr = f"!{dsl_path}" if operator == "is not" else dsl_path
@@ -322,19 +342,17 @@ test_show_line_level = "false"
 st.markdown("""
 <div class="header-banner">
     <div>
-        <div style="margin-bottom:0.5rem;">
-            <span class="header-title">⚡ XRP DSL Builder</span>
-            <span class="header-badge">Visual Rule Engine</span>
-        </div>
-        <p class="header-sub">Build targeting rules visually &nbsp;·&nbsp; Generate DSL expressions &nbsp;·&nbsp; Test customer profiles</p>
+        <span class="header-title">⚡ XRP DSL Builder</span>
+        <span class="header-badge">Visual Rule Engine</span>
     </div>
+    <p class="header-sub">Build targeting rules visually &nbsp;·&nbsp; Generate DSL expressions &nbsp;·&nbsp; Test customer profiles</p>
 </div>
 """, unsafe_allow_html=True)
 
 
 # ==================== TABS ====================
 
-tab1, = st.tabs(["🧩  Build Rule"])
+tab1, = st.tabs(["🧩 Build Rule"])
 
 
 # ==================== TAB 1: BUILD RULE ====================
@@ -353,7 +371,7 @@ with tab1:
 **Tip:** Use `AND` to require all conditions, `OR` to require any one.
         """)
 
-    col_main, col_preview = st.columns([3, 2], gap="large")
+    col_main, col_preview = st.columns([3, 2], gap="medium")
 
     with col_main:
         # Recommendation inputs at the top of Build Rule tab
@@ -370,7 +388,6 @@ with tab1:
         rec_data = RECOMMENDATIONS.get(selected_recommendation, {})
         rec_message = rec_data.get(selected_locale, "")
 
-        st.markdown("---")
         st.markdown('<div class="section-title">📋 Conditions</div>', unsafe_allow_html=True)
 
         num_conditions = st.slider("Number of conditions", min_value=1, max_value=10, value=1)
@@ -406,10 +423,16 @@ with tab1:
             c1, c2, c3 = st.columns([3, 2, 2])
             with c1:
                 st.caption(f"CONDITION {i+1} — FACT")
-                fact_options = [k for k in FACT_DSL_MAP.keys() if k != "Permissions (toArray)"] + ["Permissions (toArray)", "Custom"]
+                fact_options = [k for k in FACT_DSL_MAP.keys() if k != "Permissions (toArray)"] + ["Permissions (toArray)", "Custom Rule", "Custom Permission", "Custom"]
                 fact_selection = st.selectbox("Fact", fact_options, key=f"fact_{i}", label_visibility="collapsed")
                 if fact_selection == "Custom":
                     fact = st.text_input("Custom fact path", key=f"custom_fact_{i}", placeholder="facts.custom.field", label_visibility="collapsed")
+                elif fact_selection == "Custom Rule":
+                    rule_input = st.text_input("Rule name", key=f"custom_fact_{i}", placeholder="e.g. edp_state_features_auto_optimization", label_visibility="collapsed")
+                    fact = f"rule.{rule_input.strip()}" if rule_input.strip() else "Custom Rule"
+                elif fact_selection == "Custom Permission":
+                    perm_input = st.text_input("Permission path", key=f"custom_fact_{i}", placeholder="e.g. device_prioritization.view", label_visibility="collapsed")
+                    fact = f"facts.permissions.{perm_input.strip()}" if perm_input.strip() else "Custom Permission"
                 else:
                     fact = fact_selection
             with c2:
@@ -438,19 +461,34 @@ with tab1:
                         perm_vals.append(perm_val)
                     value = ", ".join(v.strip() for v in perm_vals if v.strip())
                 else:
-                    available_values = list(FACT_VALUES.get(fact, ["Custom"]))
-                    sidebar_val = sidebar_fact_values.get(fact, "")
-                    if sidebar_val and sidebar_val not in available_values:
-                        available_values = [sidebar_val] + available_values
-                    if len(available_values) == 1 and available_values[0] == "Custom":
-                        value = st.text_input("Value", key=f"val_{i}", placeholder="Enter value...", label_visibility="collapsed")
+                    # Resolve DSL path to determine if this is a boolean flag fact
+                    _dsl = FACT_DSL_MAP.get(fact, fact)
+                    is_flag_fact = (
+                        _dsl.startswith("rule.")
+                        or _dsl.startswith("facts.permissions.")
+                        or _dsl in TRUTHY_FACTS
+                    )
+                    if is_flag_fact:
+                        value = "true"  # operator (is / is not) controls the ! prefix in DSL
+                        st.markdown(
+                            '<span style="font-size:0.8rem;color:#6366f1;font-weight:600;">Boolean flag</span>'
+                            '<br><span style="font-size:0.75rem;color:#64748b;">Use <b>is</b> → <code>rule.X</code> &nbsp;|&nbsp; <b>is not</b> → <code>!rule.X</code></span>',
+                            unsafe_allow_html=True
+                        )
                     else:
-                        options = available_values + (["Custom"] if "Custom" not in available_values else [])
-                        selected = st.selectbox("Value", options, key=f"val_{i}", label_visibility="collapsed")
-                        if selected == "Custom":
-                            value = st.text_input("Custom value", key=f"custom_val_{i}", placeholder="Enter custom value...", label_visibility="collapsed")
+                        available_values = list(FACT_VALUES.get(fact, ["Custom"]))
+                        sidebar_val = sidebar_fact_values.get(fact, "")
+                        if sidebar_val and sidebar_val not in available_values:
+                            available_values = [sidebar_val] + available_values
+                        if len(available_values) == 1 and available_values[0] == "Custom":
+                            value = st.text_input("Value", key=f"val_{i}", placeholder="Enter value...", label_visibility="collapsed")
                         else:
-                            value = selected
+                            options = available_values + (["Custom"] if "Custom" not in available_values else [])
+                            selected = st.selectbox("Value", options, key=f"val_{i}", label_visibility="collapsed")
+                            if selected == "Custom":
+                                value = st.text_input("Custom value", key=f"custom_val_{i}", placeholder="Enter custom value...", label_visibility="collapsed")
+                            else:
+                                value = selected
             # Add/Remove buttons for Permissions — placed outside columns to avoid nested-column layout issues
             if fact == "Permissions (toArray)":
                 _, b_add, b_rem = st.columns([3, 2, 2])
@@ -486,7 +524,7 @@ with tab1:
                     full_paths = _resolve_perm_paths(v, base)
                     bool_val = "false" if op == "is not" else "true"
                     expr = f'toArray({", ".join(full_paths)}) == {bool_val}'
-                elif dsl_path.startswith("rule.") and v.lower() in ["true", "false"]:
+                elif (dsl_path.startswith("rule.") or dsl_path in TRUTHY_FACTS or dsl_path.startswith("facts.permissions.")) and v.lower() in ["true", "false"]:
                     expr = f"!{dsl_path}" if op == "is not" else dsl_path
                 elif op in COMPARISON_OP_MAP:
                     expr = f'{dsl_path} {COMPARISON_OP_MAP[op]} "{v}"'
@@ -499,7 +537,6 @@ with tab1:
         else:
             st.markdown('<div class="dsl-box"><span class="dsl-empty">DSL will appear here as you build conditions...</span></div>', unsafe_allow_html=True)
 
-        st.markdown("---")
         st.markdown('<div class="section-title">📦 Payload</div>', unsafe_allow_html=True)
 
         render_type_options = [
@@ -532,11 +569,9 @@ with st.expander("▶  Evaluate & Debug (optional)", expanded=False):
     with col_c:
         st.info(f"**Audience:** {test_audience if test_audience else 'Not set'}")
 
-    st.markdown("")
     run_clicked = st.button("▶  Run Rule Check", use_container_width=True)
 
     if run_clicked:
-        st.markdown("---")
         try:
             test_values_dict = {
                 "device_make": test_device_make,
