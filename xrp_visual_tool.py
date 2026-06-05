@@ -166,6 +166,14 @@ TO_ARRAY_FACTS: Dict[str, str] = {
     "Permissions (toArray)": "facts.permissions",
 }
 
+# Maps human-readable operator labels to DSL symbols
+COMPARISON_OP_MAP: Dict[str, str] = {
+    "at least (>=)": ">=",
+    "at most (<=)": "<=",
+    "above (>)":    ">",
+    "below (<)":    "<",
+}
+
 
 # ==================== UTILITY FUNCTIONS ====================
 
@@ -202,6 +210,8 @@ def generate_dsl(conditions: List[Tuple[str, str, str, str]], logic: Union[str, 
             is_boolean_value = value.lower() in ["true", "false"]
             if is_rule_flag and is_boolean_value:
                 dsl_expr = f"!{dsl_path}" if operator == "is not" else dsl_path
+            elif operator in COMPARISON_OP_MAP:
+                dsl_expr = f'{dsl_path} {COMPARISON_OP_MAP[operator]} "{value.strip()}"'
             else:
                 dsl_operator = "==" if operator == "is" else "!="
                 dsl_expr = f'{dsl_path} {dsl_operator} "{value.strip()}"'
@@ -234,9 +244,25 @@ def get_test_value_for_fact(fact: str, test_values: Dict[str, str]) -> str:
     return fact_map.get(fact, "N/A (not supported in test)")
 
 
+def _parse_version(v: str) -> tuple:
+    """Parse a version string like '6.4' or '10.2.1' into a comparable tuple."""
+    try:
+        return tuple(int(x) for x in v.strip().split("."))
+    except ValueError:
+        return (v.strip(),)
+
+
 def evaluate_condition(fact: str, operator: str, expected_value: str, actual_value: str) -> bool:
     if actual_value.startswith("N/A"):
         return False
+    if operator in COMPARISON_OP_MAP:
+        sym = COMPARISON_OP_MAP[operator]
+        av = _parse_version(actual_value)
+        ev = _parse_version(expected_value)
+        if sym == ">=": return av >= ev
+        if sym == "<=": return av <= ev
+        if sym == ">": return av > ev
+        if sym == "<": return av < ev
     match = (actual_value == expected_value)
     return (not match) if operator == "is not" else match
 
@@ -377,7 +403,7 @@ with tab1:
             else:
                 cond_logic = global_logic
 
-            c1, c2, c3 = st.columns([2, 1, 2])
+            c1, c2, c3 = st.columns([3, 2, 2])
             with c1:
                 st.caption(f"CONDITION {i+1} — FACT")
                 fact_options = [k for k in FACT_DSL_MAP.keys() if k != "Permissions (toArray)"] + ["Permissions (toArray)", "Custom"]
@@ -388,7 +414,7 @@ with tab1:
                     fact = fact_selection
             with c2:
                 st.caption("OPERATOR")
-                operator = st.selectbox("Operator", ["is", "is not"], key=f"op_{i}", label_visibility="collapsed")
+                operator = st.selectbox("Operator", ["is", "is not", "at least (>=)", "at most (<=)", "above (>)", "below (<)"], key=f"op_{i}", label_visibility="collapsed")
             with c3:
                 st.caption("VALUE")
                 if fact == "Permissions (toArray)":
@@ -462,6 +488,8 @@ with tab1:
                     expr = f'toArray({", ".join(full_paths)}) == {bool_val}'
                 elif dsl_path.startswith("rule.") and v.lower() in ["true", "false"]:
                     expr = f"!{dsl_path}" if op == "is not" else dsl_path
+                elif op in COMPARISON_OP_MAP:
+                    expr = f'{dsl_path} {COMPARISON_OP_MAP[op]} "{v}"'
                 else:
                     expr = f'{dsl_path} {"==" if op == "is" else "!="} "{v}"'
                 join_label = f" **{cl}**" if i < len(conditions) - 1 else ""
