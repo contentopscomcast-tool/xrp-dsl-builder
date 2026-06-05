@@ -3,7 +3,9 @@ XRP Visual Rule Builder - A Streamlit application for building targeting rules v
 """
 
 from typing import List, Tuple, Dict, Union
+import json
 import streamlit as st
+import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="XRP DSL Builder",
@@ -302,9 +304,29 @@ with st.sidebar:
     st.markdown('<div class="sidebar-card"><div class="sidebar-card-title"> Customer Profile</div>', unsafe_allow_html=True)
     test_device_make_list = st.multiselect("Device Make", ["Samsung", "Apple", "Google", "Motorola", "Other"], default=["Samsung"], help="Select one or more device makes")
     test_device_make = ", ".join(test_device_make_list) if test_device_make_list else "Samsung"
-    test_device_os_list = st.multiselect("Device OS", ["Android", "iOS"], default=["Android"], help="Select one or more OS types")
+
+    # Auto-derive smart OS default based on selected makes
+    _has_apple = "Apple" in test_device_make_list
+    _has_android = any(m in test_device_make_list for m in ["Samsung", "Google", "Motorola", "Other"])
+    if _has_apple and _has_android:
+        _os_default = ["Android", "iOS"]
+    elif _has_apple:
+        _os_default = ["iOS"]
+    else:
+        _os_default = ["Android"]
+
+    # Only override if user hasn't manually changed OS (track via session state)
+    _os_key = "device_os_override"
+    _make_key = "device_make_prev"
+    if st.session_state.get(_make_key) != test_device_make_list:
+        st.session_state[_os_key] = _os_default
+        st.session_state[_make_key] = test_device_make_list
+
+    test_device_os_list = st.multiselect("Device OS", ["Android", "iOS"], default=st.session_state.get(_os_key, _os_default), help="Auto-set based on Device Make; override manually if needed")
     test_device_os = ", ".join(test_device_os_list) if test_device_os_list else "Android"
-    test_user_role = st.selectbox("User Role", ["PRIMARY", "SECONDARY", "RESTRICTED_SECONDARY", "MEMBER", "SIM", "MANAGER"])
+
+    test_user_role_list = st.multiselect("User Role", ["PRIMARY", "SECONDARY", "RESTRICTED_SECONDARY", "MEMBER", "SIM", "MANAGER"], default=["PRIMARY"], help="Select one or more roles")
+    test_user_role = ", ".join(test_user_role_list) if test_user_role_list else "PRIMARY"
     test_account_id = st.text_input("Account ID", placeholder="Enter account ID...")
     test_has_multiple = st.selectbox("Multiple Accounts", ["true", "false"])
     test_audience = st.text_input("Audience Segment", placeholder="e.g. HQ_Cust_XM_Income_Above50K_Legacy")
@@ -390,7 +412,7 @@ with tab1:
 
         st.markdown('<div class="section-title">📋 Conditions</div>', unsafe_allow_html=True)
 
-        num_conditions = st.slider("Number of conditions", min_value=1, max_value=10, value=1)
+        num_conditions = st.slider("Number of conditions", min_value=1, max_value=20, value=1)
 
         conditions = []
         sidebar_fact_values = {
@@ -561,13 +583,53 @@ with tab1:
 # ==================== EVALUATE (COLLAPSED) ====================
 
 with st.expander("▶  Evaluate & Debug (optional)", expanded=False):
+
+    # ── Section 1: Customer Profile summary ──────────────────
+    st.markdown('<div class="section-title">👤 Customer Profile (from sidebar)</div>', unsafe_allow_html=True)
     col_a, col_b, col_c = st.columns(3)
     with col_a:
-        st.info(f"**Device Make:** {test_device_make}  **OS:** {test_device_os}")
+        st.info(f"**Device Make:** {test_device_make}  \n**OS:** {test_device_os}")
     with col_b:
-        st.info(f"**Role:** {test_user_role} · Multi: {test_has_multiple}")
+        st.info(f"**Role:** {test_user_role}  \n**Multi-Account:** {test_has_multiple}")
     with col_c:
-        st.info(f"**Audience:** {test_audience if test_audience else 'Not set'}")
+        st.info(f"**Account ID:** {test_account_id or '—'}  \n**Audience:** {test_audience or 'Not set'}")
+
+    # ── Section 2: Conditions summary ────────────────────────
+    st.markdown('<div class="section-title" style="margin-top:0.75rem;">📋 Active Conditions</div>', unsafe_allow_html=True)
+    for i, (f, op, v, cl) in enumerate(conditions):
+        dsl_path = FACT_DSL_MAP.get(f, f)
+        if dsl_path == "__toarray__":
+            cond_text = f"toArray({v})"
+        elif dsl_path.startswith("rule.") or dsl_path.startswith("facts.permissions.") or dsl_path in TRUTHY_FACTS:
+            cond_text = f"!{dsl_path}" if op == "is not" else dsl_path
+        elif op in COMPARISON_OP_MAP:
+            cond_text = f'{dsl_path} {COMPARISON_OP_MAP[op]} "{v}"'
+        else:
+            cond_text = f'{dsl_path} {"==" if op == "is" else "!="} "{v}"'
+        join_label = f" **{cl}**" if i < len(conditions) - 1 else ""
+        st.markdown(f'`{i+1}.` `{cond_text}`{join_label}')
+
+    # ── Section 3: Rule/Permission flag overrides ─────────────
+    # Detect any rule/permission facts in the conditions that need manual simulation values
+    flag_facts_in_conditions = []
+    for fact, operator, value, _cl in conditions:
+        _dsl = FACT_DSL_MAP.get(fact, fact)
+        if (_dsl.startswith("rule.") or _dsl.startswith("facts.permissions.") or _dsl in TRUTHY_FACTS) and fact not in [
+            "Internet Backup On", "Power Backup On", "Show Line Level Experience"
+        ]:
+            if fact not in [f for f, *_ in flag_facts_in_conditions]:
+                flag_facts_in_conditions.append((fact, _dsl))
+
+    rule_flag_overrides: Dict[str, str] = {}
+    if flag_facts_in_conditions:
+        st.markdown('<div class="section-title" style="margin-top:0.75rem;">🔧 Simulate Rule / Permission Flags</div>', unsafe_allow_html=True)
+        st.caption("These facts are not in the sidebar — set their simulated value below before running.")
+        flag_cols = st.columns(min(len(flag_facts_in_conditions), 3))
+        for idx, (fact, dsl_path) in enumerate(flag_facts_in_conditions):
+            with flag_cols[idx % 3]:
+                label = fact if fact not in ("Custom Rule", "Custom Permission") else dsl_path
+                val = st.selectbox(label, ["true", "false"], key=f"flag_override_{idx}")
+                rule_flag_overrides[fact] = val
 
     run_clicked = st.button("▶  Run Rule Check", use_container_width=True)
 
@@ -584,11 +646,23 @@ with st.expander("▶  Evaluate & Debug (optional)", expanded=False):
                 "power_backup": test_power_backup,
                 "show_line_level": test_show_line_level,
             }
+
             results = []
             debug_info = []
             for fact, operator, value, _cl in conditions:
-                actual_value = get_test_value_for_fact(fact, test_values_dict)
-                match = evaluate_condition(fact, operator, value, actual_value)
+                _dsl = FACT_DSL_MAP.get(fact, fact)
+                is_flag = _dsl.startswith("rule.") or _dsl.startswith("facts.permissions.") or _dsl in TRUTHY_FACTS
+
+                if is_flag:
+                    # Use manual override if provided, otherwise use sidebar-mapped value
+                    actual_value = rule_flag_overrides.get(fact, test_values_dict.get(fact.lower().replace(" ", "_"), "true"))
+                    # For flag facts: "is" means expect true, "is not" means expect false
+                    expected = "false" if operator == "is not" else "true"
+                    match = (actual_value == expected)
+                else:
+                    actual_value = get_test_value_for_fact(fact, test_values_dict)
+                    match = evaluate_condition(fact, operator, value, actual_value)
+
                 results.append(match)
                 debug_info.append((fact, operator, value, actual_value, match))
 
@@ -603,6 +677,7 @@ with st.expander("▶  Evaluate & Debug (optional)", expanded=False):
                         final_result = final_result or results[idx]
             else:
                 final_result = False
+
             pass_count = sum(results)
             fail_count = len(results) - pass_count
 
@@ -623,9 +698,9 @@ with st.expander("▶  Evaluate & Debug (optional)", expanded=False):
 
             with col_meta:
                 st.markdown(f"""
-                <div style="padding:1rem;background:#f8faff;border:1px solid #e2e8f0;border-radius:12px;text-align:center;">
-                    <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:0.75rem;">Summary</div>
-                    <span class="pill pill-total">{len(results)} Total</span><br><br>
+                <div style="padding:0.85rem;background:#f8faff;border:1px solid #e2e8f0;border-radius:12px;text-align:center;">
+                    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:0.6rem;">Summary</div>
+                    <span class="pill pill-total">{len(results)} Conditions</span><br><br>
                     <span class="pill pill-pass">✓ {pass_count} Passed</span>&nbsp;
                     <span class="pill pill-fail">✗ {fail_count} Failed</span>
                 </div>""", unsafe_allow_html=True)
@@ -637,14 +712,19 @@ with st.expander("▶  Evaluate & Debug (optional)", expanded=False):
             except ValueError as e:
                 st.error(f"⚠️ {str(e)}")
 
-            st.markdown("##### 🔍 Condition Debug")
+            st.markdown("##### 🔍 Condition-by-Condition Result")
             for i, (fact, operator, value, actual, matched) in enumerate(debug_info):
                 css_class = "debug-pass" if matched else "debug-fail"
                 icon = "✅" if matched else "❌"
+                _dsl_p = FACT_DSL_MAP.get(fact, fact)
+                is_flag = _dsl_p.startswith("rule.") or _dsl_p.startswith("facts.permissions.") or _dsl_p in TRUTHY_FACTS
+                source_label = "🔧 simulated" if is_flag and fact in rule_flag_overrides else "👤 profile"
                 st.markdown(
                     f'<div class="{css_class}">{icon} &nbsp; <b>#{i+1} {fact}</b> &nbsp; '
                     f'<span style="opacity:0.75">{operator}</span> &nbsp; '
-                    f'<code>"{value}"</code> &nbsp;|&nbsp; Actual: <code>"{actual}"</code></div>',
+                    f'<code>"{value}"</code> &nbsp;|&nbsp; '
+                    f'Actual: <code>"{actual}"</code> &nbsp;'
+                    f'<span style="font-size:0.72rem;opacity:0.65">({source_label})</span></div>',
                     unsafe_allow_html=True
                 )
 
