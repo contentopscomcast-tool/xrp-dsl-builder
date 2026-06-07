@@ -559,30 +559,15 @@ with tab1:
         else:
             st.markdown('<div class="dsl-box"><span class="dsl-empty">DSL will appear here as you build conditions...</span></div>', unsafe_allow_html=True)
 
-        st.markdown('<div class="section-title">📦 Payload</div>', unsafe_allow_html=True)
-
-        render_type_options = [
-            "feature_card",
-            "section_header",
-            "greetings",
-            "dynamic_app_card",
-        ]
-        selected_render_type = st.selectbox("Render Type", render_type_options, key="render_type")
-
-        example_payload = {
-            "resourceId": selected_recommendation,
-            "renderType": selected_render_type,
-            "locale": selected_locale,
-            "message": rec_message if rec_message else "(Custom recommendation)",
-            "dismissible": True,
-            "ruleConditions": payload_dsl
-        }
-        st.json(example_payload)
+        # ── PAYLOAD SECTION temporarily hidden ──────────────
+        # st.markdown('<div class="section-title">📦 Payload</div>', unsafe_allow_html=True)
+        # render_type_options = [...]
+        # st.json(example_payload)
 
 
 # ==================== EVALUATE (COLLAPSED) ====================
 
-with st.expander("▶  Evaluate & Debug (optional)", expanded=False):
+with st.expander("▶  Evaluate & Debug (optional)  🚧 Development in Progress", expanded=False):
 
     # ── Section 1: Customer Profile summary ──────────────────
     st.markdown('<div class="section-title">👤 Customer Profile (from sidebar)</div>', unsafe_allow_html=True)
