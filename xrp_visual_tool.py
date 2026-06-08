@@ -382,15 +382,62 @@ tab1, = st.tabs(["🧩 Build Rule"])
 with tab1:
     with st.expander("📖 How to use the condition builder", expanded=False):
         st.markdown("""
-**Example output:** `(facts.xcdp.realized == "HQ_Cust_Digital_Soccer_Likely" && facts.auth.user_role == "PRIMARY")`
+### ⚡ Quick Start
+Select a **Fact → Operator → Value** for each condition. The DSL is generated live in the preview panel on the right.
 
-| Fact | Operator | Value | DSL Output |
-|---|---|---|---|
-| Audience | is | HQ_Cust_Digital_Soccer_Likely | `facts.xcdp.realized == "..."` |
-| Internet Backup On | is not | true | `!rule.is_internet_backup_on` |
-| User Role | is | PRIMARY | `facts.auth.user_role == "PRIMARY"` |
+---
 
-**Tip:** Use `AND` to require all conditions, `OR` to require any one.
+### 🔢 Operators
+| Operator | Meaning | Example DSL |
+|---|---|---|
+| `is` | Equals | `facts.auth.user_role == "PRIMARY"` |
+| `is not` | Not equals | `facts.auth.user_role != "PRIMARY"` |
+| `at least (>=)` | Greater than or equal | `facts.client.version >= "6.4"` |
+| `at most (<=)` | Less than or equal | `facts.client.version <= "10.0"` |
+| `above (>)` | Strictly greater | `facts.client.version > "6.4"` |
+| `below (<)` | Strictly less | `facts.client.version < "10.0"` |
+
+> **Note:** Version comparisons are version-aware — `6.10` is correctly treated as greater than `6.4`.
+
+---
+
+### 🏷️ Boolean Flag Facts
+Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value entry needed.
+
+| Operator | DSL Output |
+|---|---|
+| `is` | `rule.is_disconnected_customer` |
+| `is not` | `!rule.is_disconnected_customer` |
+
+---
+
+### 🧩 Custom Fact Types
+| Selection | What to enter | DSL generated |
+|---|---|---|
+| **Custom Rule** | Rule name, e.g. `has_gw_device` | `rule.has_gw_device` |
+| **Custom Permission** | Permission path, e.g. `device_prioritization.view` | `facts.permissions.device_prioritization.view` |
+| **Custom** | Full fact path, e.g. `facts.custom.field` | `facts.custom.field == "value"` |
+| **Permissions (toArray)** | One or more sub-paths | `toArray(facts.permissions.x, facts.permissions.y) == true` |
+
+---
+
+### 🔗 Logic Between Conditions
+- Set **Default logic** (AND / OR) at the top — applies to all conditions
+- Override per-condition using the **Join condition N → N+1 with** radio below each row
+- Supports up to **20 conditions**
+
+---
+
+### 💡 Examples
+```
+(facts.xcdp.realized == "HQ_Cust_Digital_Soccer_Likely" && facts.auth.user_role == "PRIMARY")
+
+(facts.client.version >= "6.4" && rule.has_gw_device)
+
+(!rule.is_disconnected_customer && facts.client.device.os.name == "iOS")
+
+(toArray(facts.permissions.device_prioritization.view) == true)
+```
         """)
 
     col_main, col_preview = st.columns([3, 2], gap="medium")
