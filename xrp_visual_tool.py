@@ -318,6 +318,13 @@ def generate_dsl(conditions: List[Tuple[str, str, str, str]], logic: Union[str, 
         return ""
     dsl_parts = []
     for fact, operator, value, _cond_logic in conditions:
+        # Raw / complex expression — emit stored expression directly, skip value check
+        if fact.startswith("__raw__:"):
+            _raw_expr = fact[len("__raw__:"):]
+            if not _raw_expr.strip():
+                raise ValueError("Empty custom DSL expression — please fill in the expression")
+            dsl_parts.append(_raw_expr.strip())
+            continue
         if not value or not value.strip():
             raise ValueError(f"Empty value for fact '{fact}' — please fill in all values")
         dsl_path = FACT_DSL_MAP.get(fact, fact)
@@ -431,6 +438,13 @@ def parse_dsl_to_conditions(dsl_text: str):
     text = dsl_text.strip()
     if not text:
         return [], "AND", ["Empty DSL expression."], []
+
+    # ── Normalize: collapse newlines/tabs → spaces, then normalise spacing
+    # around && and || so the depth-aware splitter always sees ' && ' / ' || '
+    text = re.sub(r'[\r\n\t]+', ' ', text)
+    text = re.sub(r' {2,}', ' ', text).strip()
+    text = re.sub(r'\s*&&\s*', ' && ', text)
+    text = re.sub(r'\s*\|\|\s*', ' || ', text)
 
     # Check unmatched parentheses
     depth = 0
@@ -640,7 +654,12 @@ def parse_dsl_to_conditions(dsl_text: str):
             conditions.append((rev_map.get(path, path), operator, value, cond_logic))
             continue
 
-        errors.append(f"Cannot parse condition: `{part}`")
+        # ── Raw / complex expression — preserve instead of failing import ─
+        # Conditions using if(), is_null(), round(), days_before_now(), etc.
+        # that cannot be decomposed into visual fields are stored as raw DSL.
+        _short = part[:100] + ("\u2026" if len(part) > 100 else "")
+        warnings.append(f"Complex expression preserved as raw DSL (condition {idx + 1}): `{_short}`")
+        conditions.append((f"__raw__:{part}", "raw", "", cond_logic))
 
     return conditions, global_logic, errors, warnings
 
@@ -713,6 +732,13 @@ def apply_parsed_conditions_to_session(parsed_conditions: List[Tuple], global_lo
     )
 
     for i, (fact, operator, value, cond_logic) in enumerate(parsed_conditions):
+        # ── Raw / complex expressions ────────────────────────────────────────
+        if fact.startswith("__raw__:"):
+            st.session_state[f"fact_{i}"] = "Custom DSL Expression"
+            st.session_state[f"custom_fact_{i}"] = fact[len("__raw__:"):]
+            if i > 0:
+                st.session_state[f"cond_logic_{i}"] = cond_logic
+            continue
         # Map parsed fact name back to selectbox value
         if fact in fact_options and fact not in ("Custom Rule", "Custom Permission", "Custom"):
             fact_sel = fact
@@ -999,7 +1025,7 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
             c1, c2, c3 = st.columns([3, 2, 2.2])
             with c1:
                 st.markdown('<span class="field-label">Fact</span>', unsafe_allow_html=True)
-                fact_options = [k for k in FACT_DSL_MAP.keys() if k != "Permissions (toArray)"] + ["Permissions (toArray)", "Custom Rule", "Custom Permission", "Custom"]
+                fact_options = [k for k in FACT_DSL_MAP.keys() if k != "Permissions (toArray)"] + ["Permissions (toArray)", "Custom Rule", "Custom Permission", "Custom", "Custom DSL Expression"]
                 fact_selection = st.selectbox("Fact", fact_options, key=f"fact_{i}", label_visibility="collapsed")
                 if fact_selection == "Custom":
                     fact = st.text_input("Custom fact path", key=f"custom_fact_{i}", placeholder="facts.custom.field", label_visibility="collapsed")
@@ -1009,14 +1035,31 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
                 elif fact_selection == "Custom Permission":
                     perm_input = st.text_input("Permission path", key=f"custom_fact_{i}", placeholder="e.g. device_prioritization.view", label_visibility="collapsed")
                     fact = f"facts.permissions.{perm_input.strip()}" if perm_input.strip() else "Custom Permission"
+                elif fact_selection == "Custom DSL Expression":
+                    _raw_dsl_input = st.text_area(
+                        "Raw DSL expression",
+                        key=f"custom_fact_{i}",
+                        placeholder="e.g. if(!is_null(facts.x), round(y/60,0)>=1, round(z/60,0)>=1)",
+                        height=72,
+                        label_visibility="collapsed",
+                    )
+                    fact = f"__raw__:{_raw_dsl_input.strip()}" if _raw_dsl_input.strip() else "__raw__:"
                 else:
                     fact = fact_selection
             with c2:
-                st.markdown('<span class="field-label">Operator</span>', unsafe_allow_html=True)
-                operator = st.selectbox("Operator", ["is", "is not", "at least (>=)", "at most (<=)", "above (>)", "below (<)"], key=f"op_{i}", label_visibility="collapsed")
+                if fact_selection == "Custom DSL Expression":
+                    operator = "raw"
+                    st.markdown('<span class="field-label">Operator</span>', unsafe_allow_html=True)
+                    st.caption("N/A")
+                else:
+                    st.markdown('<span class="field-label">Operator</span>', unsafe_allow_html=True)
+                    operator = st.selectbox("Operator", ["is", "is not", "at least (>=)", "at most (<=)", "above (>)", "below (<)"], key=f"op_{i}", label_visibility="collapsed")
             with c3:
                 st.markdown('<span class="field-label">Value</span>', unsafe_allow_html=True)
-                if fact == "Permissions (toArray)":
+                if fact_selection == "Custom DSL Expression":
+                    value = ""
+                    st.caption("N/A \u2014 value is embedded in the raw expression above")
+                elif fact == "Permissions (toArray)":
                     st.markdown(
                         '<span style="font-size:0.75rem;color:#6366f1;font-weight:600;">Base: </span>'
                         '<code style="font-size:0.75rem;background:#e0e7ff;padding:0.1rem 0.4rem;border-radius:4px;">facts.permissions</code>'
@@ -1185,6 +1228,11 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
                 st.code(live_dsl, language="javascript")
             st.markdown("**Condition Breakdown**")
             for i, (f, op, v, cl) in enumerate(conditions):
+                if f.startswith("__raw__:"):
+                    expr = f[len("__raw__:"):]
+                    join_label = f" **{cl}**" if i < len(conditions) - 1 else ""
+                    st.markdown(f"`{i+1}.` `{expr}`{join_label}")
+                    continue
                 dsl_path = FACT_DSL_MAP.get(f, f)
                 if dsl_path == "__toarray__":
                     base = TO_ARRAY_FACTS.get(f, "facts.permissions")
@@ -1260,7 +1308,9 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
                             unsafe_allow_html=True
                         )
                     _dsl_preview = FACT_DSL_MAP.get(_pf, _pf)
-                    if _dsl_preview == "__toarray__":
+                    if _pf.startswith("__raw__:"):
+                        _expr_preview = _pf[len("__raw__:"):]
+                    elif _dsl_preview == "__toarray__":
                         _expr_preview = f'toArray(facts.permissions.{_pv}) == true'
                     elif (_dsl_preview.startswith("rule.") or _dsl_preview.startswith("facts.permissions.") or _dsl_preview in TRUTHY_FACTS) and _pv.lower() in ("true", "false"):
                         _expr_preview = f"!{_dsl_preview}" if _pop == "is not" else _dsl_preview
