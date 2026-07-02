@@ -3,6 +3,7 @@ XRP Visual Rule Builder - A Streamlit application for building targeting rules v
 """
 
 from typing import List, Tuple, Dict, Union
+import re
 import json
 import streamlit as st
 import streamlit.components.v1 as components
@@ -217,7 +218,7 @@ FACT_VALUES: Dict[str, List[str]] = {
     "Client App Version": ["Custom"],
     "Service Account ID": ["Custom"],
     "Service Account Partner": ["comcast", "Custom"],
-    "User Role": ["PRIMARY", "SECONDARY", "RESTRICTED_SECONDARY", "MEMBER", "SIM"],
+    "User Role": ["PRIMARY", "SECONDARY", "RESTRICTED_SECONDARY", "MEMBER", "SIM", "MANAGER"],
     "Has Multiple Accounts": ["true", "false"],
     "Internet Backup On": ["true", "false"],
     "Power Backup On": ["true", "false"],
@@ -400,6 +401,371 @@ def evaluate_condition(fact: str, operator: str, expected_value: str, actual_val
     return (not match) if operator == "is not" else match
 
 
+def _split_top_level(text: str, op: str) -> List[str]:
+    """Split text by op only at parenthesis/bracket depth 0."""
+    parts: List[str] = []
+    current, depth, i = "", 0, 0
+    op_len = len(op)
+    while i < len(text):
+        ch = text[i]
+        if ch in "({": depth += 1; current += ch; i += 1
+        elif ch in ")}": depth -= 1; current += ch; i += 1
+        elif depth == 0 and text[i:i + op_len] == op:
+            parts.append(current.strip()); current = ""; i += op_len
+        else:
+            current += ch; i += 1
+    if current.strip():
+        parts.append(current.strip())
+    return parts
+
+
+def parse_dsl_to_conditions(dsl_text: str):
+    """
+    Parse a DSL string into (conditions, global_logic, errors, warnings).
+    conditions: List of (fact, operator, value, cond_logic)
+    """
+    errors: List[str] = []
+    warnings: List[str] = []
+    conditions: List[Tuple] = []
+
+    text = dsl_text.strip()
+    if not text:
+        return [], "AND", ["Empty DSL expression."], []
+
+    # Check unmatched parentheses
+    depth = 0
+    for ch in text:
+        if ch == "(": depth += 1
+        elif ch == ")": depth -= 1
+        if depth < 0:
+            return [], "AND", ["Unmatched closing parenthesis ')' — check your brackets."], []
+    if depth != 0:
+        return [], "AND", [f"Unmatched opening parenthesis '(' — {depth} bracket(s) left unclosed."], []
+
+    # Strip one level of outer parens if balanced
+    if text.startswith("(") and text.endswith(")"):
+        inner, d = text[1:-1], 0
+        ok = True
+        for ch in inner:
+            if ch == "(": d += 1
+            elif ch == ")": d -= 1
+            if d < 0: ok = False; break
+        if ok and d == 0:
+            text = inner.strip()
+
+    # Check for spacing issues around logical operators
+    if re.search(r'(?<![&|])[&][&](?![&|])', text) and " && " not in text:
+        warnings.append("Missing spaces around '&&' — use ' && ' between conditions.")
+    if re.search(r'(?<![|])[|][|](?![|])', text) and " || " not in text:
+        warnings.append("Missing spaces around '||' — use ' || ' between conditions.")
+
+    # Check for single-quoted strings (should be double-quoted)
+    if re.search(r"(?<![\\])'", text):
+        warnings.append("Single quotes detected — DSL requires double quotes around values.")
+
+    # Split on top-level ' && ' and ' || '
+    parts: List[str] = []
+    ops_between: List[str] = []
+    current, depth = "", 0
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch in "({":
+            depth += 1; current += ch; i += 1
+        elif ch in ")}":
+            depth -= 1; current += ch; i += 1
+        elif depth == 0 and text[i:i+4] == " && ":
+            parts.append(current.strip()); ops_between.append("AND")
+            current = ""; i += 4
+        elif depth == 0 and text[i:i+4] == " || ":
+            parts.append(current.strip()); ops_between.append("OR")
+            current = ""; i += 4
+        elif depth == 0 and text[i:i+2] in ("&&", "||"):
+            # Handle missing-space variants
+            op_sym = "AND" if text[i:i+2] == "&&" else "OR"
+            parts.append(current.strip()); ops_between.append(op_sym)
+            current = ""; i += 2
+        else:
+            current += ch; i += 1
+    if current.strip():
+        parts.append(current.strip())
+
+    if not parts:
+        return [], "AND", ["No conditions found in the DSL expression."], warnings
+
+    # Determine global logic from majority operator
+    if ops_between:
+        global_logic = "AND" if ops_between.count("AND") >= ops_between.count("OR") else "OR"
+    else:
+        global_logic = "AND"
+
+    # Reverse maps
+    rev_map: Dict[str, str] = {v: k for k, v in FACT_DSL_MAP.items() if v != "__toarray__"}
+    known_paths: set = {v for v in FACT_DSL_MAP.values() if v != "__toarray__"}
+    rev_comp: Dict[str, str] = {v: k for k, v in COMPARISON_OP_MAP.items()}
+
+    # ── Flatten grouped OR sub-expressions: (A || B) inside && chains ──────────
+    # After top-level && split, each part may be a parenthesised OR group like
+    # (!rule.X || facts.y == to_array(...)). We expand those into individual
+    # conditions here so the per-condition pattern matchers can handle them.
+    flat_parts: List[str] = []
+    flat_ops: List[str] = []  # logic connector that joins flat_parts[i] to flat_parts[i-1]
+
+    for _fi, _fpart in enumerate(parts):
+        _incoming = ops_between[_fi - 1] if _fi > 0 else global_logic
+        # Try to strip one level of balanced outer parentheses
+        if _fpart.startswith("(") and _fpart.endswith(")"):
+            _inner = _fpart[1:-1]
+            _d, _ok = 0, True
+            for _ch in _inner:
+                if _ch == "(": _d += 1
+                elif _ch == ")": _d -= 1
+                if _d < 0: _ok = False; break
+            if _ok and _d == 0:
+                # Check for top-level || operators inside the group
+                _sub = _split_top_level(_inner.strip(), " || ")
+                if len(_sub) > 1:
+                    for _si, _sp in enumerate(_sub):
+                        flat_parts.append(_sp.strip())
+                        flat_ops.append(_incoming if _si == 0 else "OR")
+                    continue
+                # No top-level ||; also try bare &&
+                _sub_and = _split_top_level(_inner.strip(), " && ")
+                if len(_sub_and) > 1:
+                    for _si, _sp in enumerate(_sub_and):
+                        flat_parts.append(_sp.strip())
+                        flat_ops.append(_incoming if _si == 0 else "AND")
+                    continue
+        flat_parts.append(_fpart)
+        flat_ops.append(_incoming)
+
+    # Recalculate global_logic from the full flattened operator list
+    _all_flat_ops = [o for o in flat_ops if o]
+    if _all_flat_ops:
+        global_logic = "AND" if _all_flat_ops.count("AND") >= _all_flat_ops.count("OR") else "OR"
+
+    for idx, part in enumerate(flat_parts):
+        part = part.strip()
+        cond_logic = flat_ops[idx] if idx < len(flat_ops) else global_logic
+
+        # ── toArray(...) == true/false ──────────────────────
+        m = re.match(r'^toArray\((.+)\)\s*==\s*(true|false)$', part, re.IGNORECASE)
+        if m:
+            paths = [p.strip() for p in m.group(1).split(",")]
+            bool_val = m.group(2).lower()
+            operator = "is not" if bool_val == "false" else "is"
+            sub = [p[len("facts.permissions."):] if p.startswith("facts.permissions.") else p for p in paths]
+            conditions.append(("Permissions (toArray)", operator, ", ".join(sub), cond_logic))
+            continue
+
+        # ── !path  (negated boolean flag) ──────────────────
+        m = re.match(r'^!([a-zA-Z_][a-zA-Z0-9_.{}]*)$', part)
+        if m:
+            path = m.group(1)
+            fact_name = rev_map.get(path, path)
+            if path not in known_paths and not (path.startswith("rule.") or path.startswith("facts.")):
+                warnings.append(f"Unknown DSL path '{path}' — possible typo?")
+            conditions.append((fact_name, "is not", "true", cond_logic))
+            continue
+
+        # ── bare path (positive boolean flag) ──────────────
+        m = re.match(r'^([a-zA-Z_][a-zA-Z0-9_.{}]*)$', part)
+        if m:
+            path = m.group(1)
+            fact_name = rev_map.get(path, path)
+            if path not in known_paths and not (path.startswith("rule.") or path.startswith("facts.")):
+                warnings.append(f"Unknown DSL path '{path}' — possible typo?")
+            conditions.append((fact_name, "is", "true", cond_logic))
+            continue
+
+        # ── version_compare(path, "ver") sym 0 ─────────────
+        m = re.match(r'^version_compare\(([^,]+),\s*"([^"]+)"\)\s*([><=!]+)\s*0$', part)
+        if m:
+            path, value, sym = m.group(1).strip(), m.group(2), m.group(3)
+            operator = rev_comp.get(sym)
+            if not operator:
+                errors.append(f"Unknown comparison symbol '{sym}' in: `{part}`"); continue
+            conditions.append((rev_map.get(path, path), operator, value, cond_logic))
+            continue
+
+        # ── path op to_array("v1", "v2") ────────────────────
+        m = re.match(r'^([a-zA-Z_][a-zA-Z0-9_.{}]*)\s*(==|!=)\s*to_array\((.+)\)$', part)
+        if m:
+            path, sym, vals_raw = m.group(1).strip(), m.group(2), m.group(3)
+            vals = re.findall(r'"([^"]*)"', vals_raw)
+            operator = "is not" if sym == "!=" else "is"
+            conditions.append((rev_map.get(path, path), operator, ", ".join(vals), cond_logic))
+            continue
+
+        # ── path op "value"  (most common) ─────────────────
+        m = re.match(r'^([a-zA-Z_][a-zA-Z0-9_.{}]*)\s*([><=!]+)\s*"([^"]*)"$', part)
+        if m:
+            path, sym, value = m.group(1).strip(), m.group(2), m.group(3)
+            if sym in rev_comp:
+                operator = rev_comp[sym]
+            elif sym == "==":
+                operator = "is"
+            elif sym == "!=":
+                operator = "is not"
+            else:
+                errors.append(f"Unknown operator '{sym}' in: `{part}`"); continue
+            fact_name = rev_map.get(path, path)
+            if (
+                path not in known_paths
+                and not path.startswith("rule.")
+                and not path.startswith("facts.")
+                and not path.startswith("serviceAccount.")
+                and not path.startswith("experiment.")
+            ):
+                warnings.append(f"Unknown DSL path '{path}' — possible typo?")
+            conditions.append((fact_name, operator, value, cond_logic))
+            continue
+
+        # ── path op 'value'  (single-quote typo) ───────────
+        m = re.match(r"^([a-zA-Z_][a-zA-Z0-9_.{}]*)\s*([><=!]+)\s*'([^']*)'$", part)
+        if m:
+            path, sym, value = m.group(1).strip(), m.group(2), m.group(3)
+            warnings.append(f"Single quotes used around '{value}' — replace with double quotes.")
+            operator = "is" if sym == "==" else ("is not" if sym == "!=" else "is")
+            conditions.append((rev_map.get(path, path), operator, value, cond_logic))
+            continue
+
+        # ── path op unquoted_value ──────────────────────────
+        m = re.match(r'^([a-zA-Z_][a-zA-Z0-9_.{}]*)\s*([><=!]+)\s*([a-zA-Z0-9._]+)$', part)
+        if m:
+            path, sym, value = m.group(1).strip(), m.group(2), m.group(3)
+            if value.lower() not in ("true", "false"):
+                warnings.append(f"Unquoted string value '{value}' — DSL requires double quotes around string values.")
+            operator = "is" if sym == "==" else ("is not" if sym == "!=" else "is")
+            conditions.append((rev_map.get(path, path), operator, value, cond_logic))
+            continue
+
+        errors.append(f"Cannot parse condition: `{part}`")
+
+    return conditions, global_logic, errors, warnings
+
+
+def _remove_condition(idx: int) -> None:
+    """Remove the condition at idx by shifting all subsequent conditions' state keys down."""
+    n = st.session_state.get("num_conditions", 1)
+    _SCALAR = [
+        "fact_{}", "op_{}", "val_{}", "custom_fact_{}", "custom_val_{}",
+        "cond_logic_{}", "val_roles_{}", "perm_count_{}", "aud_count_cond_{}", "acct_count_cond_{}"
+    ]
+    _SUB = ["perm_val_{}_{}", "aud_cond_{}_{}", "acct_cond_{}_{}"]
+    if n <= 1:
+        # Reset the single remaining condition to blank
+        for tpl in _SCALAR:
+            st.session_state.pop(tpl.format(0), None)
+        for sub in range(20):
+            for tpl in _SUB:
+                st.session_state.pop(tpl.format(0, sub), None)
+        return
+    # Shift conditions idx+1 … n-1 down to idx … n-2
+    for ci in range(idx, n - 1):
+        for tpl in _SCALAR:
+            src, dst = tpl.format(ci + 1), tpl.format(ci)
+            if src in st.session_state:
+                st.session_state[dst] = st.session_state[src]
+            else:
+                st.session_state.pop(dst, None)
+        for sub in range(20):
+            for tpl in _SUB:
+                src, dst = tpl.format(ci + 1, sub), tpl.format(ci, sub)
+                if src in st.session_state:
+                    st.session_state[dst] = st.session_state[src]
+                else:
+                    st.session_state.pop(dst, None)
+    # Clear the now-duplicate last slot
+    last = n - 1
+    for tpl in _SCALAR:
+        st.session_state.pop(tpl.format(last), None)
+    for sub in range(20):
+        for tpl in _SUB:
+            st.session_state.pop(tpl.format(last, sub), None)
+    st.session_state["num_conditions"] = n - 1
+
+
+def apply_parsed_conditions_to_session(parsed_conditions: List[Tuple], global_logic: str) -> None:
+    """Populate condition-builder session state from parsed DSL conditions."""
+    # Clear previous condition keys (up to 20)
+    for ci in range(20):
+        for key in [
+            f"fact_{ci}", f"op_{ci}", f"val_{ci}",
+            f"custom_fact_{ci}", f"custom_val_{ci}",
+            f"cond_logic_{ci}", f"val_roles_{ci}",
+            f"perm_count_{ci}", f"aud_count_cond_{ci}", f"acct_count_cond_{ci}",
+        ]:
+            st.session_state.pop(key, None)
+        for sub in range(20):
+            st.session_state.pop(f"perm_val_{ci}_{sub}", None)
+            st.session_state.pop(f"aud_cond_{ci}_{sub}", None)
+            st.session_state.pop(f"acct_cond_{ci}_{sub}", None)
+
+    st.session_state["num_conditions"] = len(parsed_conditions)
+    # Stage the logic value; applied before the radio widget renders on the next rerun
+    # to avoid StreamlitAPIException (cannot write widget key after instantiation).
+    st.session_state["_pending_global_logic"] = global_logic
+
+    fact_options = (
+        [k for k in FACT_DSL_MAP.keys() if k != "Permissions (toArray)"]
+        + ["Permissions (toArray)", "Custom Rule", "Custom Permission", "Custom"]
+    )
+
+    for i, (fact, operator, value, cond_logic) in enumerate(parsed_conditions):
+        # Map parsed fact name back to selectbox value
+        if fact in fact_options and fact not in ("Custom Rule", "Custom Permission", "Custom"):
+            fact_sel = fact
+        elif fact.startswith("rule."):
+            fact_sel = "Custom Rule"
+            st.session_state[f"custom_fact_{i}"] = fact[len("rule."):]
+        elif fact.startswith("facts.permissions."):
+            fact_sel = "Custom Permission"
+            st.session_state[f"custom_fact_{i}"] = fact[len("facts.permissions."):]
+        else:
+            fact_sel = "Custom"
+            st.session_state[f"custom_fact_{i}"] = fact
+
+        st.session_state[f"fact_{i}"] = fact_sel
+        st.session_state[f"op_{i}"] = operator
+
+        if fact == "Permissions (toArray)":
+            sub_paths = [s.strip() for s in value.split(",") if s.strip()]
+            st.session_state[f"perm_count_{i}"] = max(1, len(sub_paths))
+            for j, sp in enumerate(sub_paths):
+                st.session_state[f"perm_val_{i}_{j}"] = sp
+        elif fact == "User Role":
+            roles = [r.strip() for r in value.split(",") if r.strip()]
+            st.session_state[f"val_roles_{i}"] = roles
+        elif fact == "Audience":
+            auds = [a.strip() for a in value.split(",") if a.strip()]
+            st.session_state[f"aud_count_cond_{i}"] = max(1, len(auds))
+            for j, a in enumerate(auds):
+                st.session_state[f"aud_cond_{i}_{j}"] = a
+        elif fact == "Service Account ID":
+            accts = [a.strip() for a in value.split(",") if a.strip()]
+            st.session_state[f"acct_count_cond_{i}"] = max(1, len(accts))
+            for j, a in enumerate(accts):
+                st.session_state[f"acct_cond_{i}_{j}"] = a
+        else:
+            _dsl = FACT_DSL_MAP.get(fact, fact)
+            is_flag = (
+                _dsl.startswith("rule.")
+                or _dsl.startswith("facts.permissions.")
+                or _dsl in TRUTHY_FACTS
+            )
+            if not is_flag:
+                avail = list(FACT_VALUES.get(fact, ["Custom"]))
+                if value in avail:
+                    st.session_state[f"val_{i}"] = value
+                else:
+                    st.session_state[f"val_{i}"] = "Custom"
+                    st.session_state[f"custom_val_{i}"] = value
+
+        if i > 0:
+            st.session_state[f"cond_logic_{i}"] = cond_logic
+
+
 # ==================== SIDEBAR ====================
 
 with st.sidebar:
@@ -413,13 +779,27 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="sidebar-card-title">👤 Customer Profile</div>', unsafe_allow_html=True)
-    test_device_make_list = st.multiselect("Device Make", ["Samsung", "Apple", "Google", "Motorola", "Other"], default=["Samsung"], help="Select one or more device makes")
+    test_device_make_list = st.multiselect("Device Make", ["Samsung", "Apple", "Google", "Motorola", "Other"], default=["Samsung"], key="device_make_ms", help="Select one or more device makes")
     test_device_make = ", ".join(test_device_make_list) if test_device_make_list else "Samsung"
 
-    test_device_os_list = st.multiselect("Device OS", ["Android", "iOS"], default=["Android"])
+    # Auto-select OS based on Device Make
+    _has_apple = "Apple" in test_device_make_list
+    _has_android_make = any(m in test_device_make_list for m in ["Samsung", "Google", "Motorola", "Other"])
+    if _has_apple and not _has_android_make:
+        _os_auto = ["iOS"]
+    elif _has_android_make and not _has_apple:
+        _os_auto = ["Android"]
+    elif _has_apple and _has_android_make:
+        _os_auto = ["Android", "iOS"]
+    else:
+        _os_auto = ["Android"]
+    if st.session_state.get("_last_device_make") != sorted(test_device_make_list):
+        st.session_state["device_os_ms"] = _os_auto
+        st.session_state["_last_device_make"] = sorted(test_device_make_list)
+    test_device_os_list = st.multiselect("Device OS", ["Android", "iOS"], key="device_os_ms")
     test_device_os = ", ".join(test_device_os_list) if test_device_os_list else "Android"
 
-    test_user_role_list = st.multiselect("User Role", ["PRIMARY", "SECONDARY", "RESTRICTED_SECONDARY", "MEMBER", "SIM"], default=["PRIMARY"], help="Select one or more roles")
+    test_user_role_list = st.multiselect("User Role", ["PRIMARY", "SECONDARY", "RESTRICTED_SECONDARY", "MEMBER", "SIM", "MANAGER"], default=["PRIMARY"], help="Select one or more roles")
     test_user_role = ", ".join(test_user_role_list) if test_user_role_list else "PRIMARY"
     test_account_id = st.text_input("Account ID", placeholder="Enter account ID...")
     test_has_multiple = st.selectbox("Multiple Accounts", ["true", "false"])
@@ -560,20 +940,6 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
     col_main, col_preview = st.columns([3, 2], gap="medium")
 
     with col_main:
-        # Recommendation inputs at the top of Build Rule tab
-        r1, r2 = st.columns([3, 1])
-        with r1:
-            selected_recommendation = st.text_input(
-                "Recommendation ID",
-                value="XIT_AIQ_PREDICTIVE_WAN_SCORE",
-                help="Enter any recommendation name."
-            )
-        with r2:
-            selected_locale = st.selectbox("Locale", ["en-US", "es-US"])
-
-        rec_data = RECOMMENDATIONS.get(selected_recommendation, {})
-        rec_message = rec_data.get(selected_locale, "")
-
         st.markdown('<div class="section-title">📋 Conditions</div>', unsafe_allow_html=True)
 
         if "num_conditions" not in st.session_state:
@@ -590,7 +956,12 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
             "Audience": test_audience_list,
         }
 
+        # Apply staged global logic from an import (must happen before the widget renders)
+        if "_pending_global_logic" in st.session_state:
+            st.session_state["global_logic_radio"] = st.session_state.pop("_pending_global_logic")
+
         global_logic = st.radio("Default logic between conditions:", ["AND", "OR"], horizontal=True,
+                         key="global_logic_radio",
                          help="Default operator joining conditions. You can override per condition below.")
 
         for i in range(num_conditions):
@@ -609,13 +980,21 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
             else:
                 cond_logic = global_logic
 
-            st.markdown(
-                f'<div style="display:flex;align-items:center;margin-bottom:0.5rem;padding:0.65rem 0.9rem 0 0.9rem;">'
-                f'<span class="cond-badge">{i+1}</span>'
-                f'<span style="font-size:0.74rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.6px;">Condition {i+1}</span>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
+            _hdr_lbl, _hdr_del = st.columns([11, 1])
+            with _hdr_lbl:
+                st.markdown(
+                    f'<div style="display:flex;align-items:center;padding:0.3rem 0 0.3rem 0;">'
+                    f'<span class="cond-badge">{i+1}</span>'
+                    f'<span style="font-size:0.74rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.6px;">Condition {i+1}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+            with _hdr_del:
+                st.markdown('<div class="rem-cond-btn">', unsafe_allow_html=True)
+                if st.button("✕", key=f"del_cond_{i}", help=f"Remove condition {i+1}", use_container_width=True):
+                    _remove_condition(i)
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
 
             c1, c2, c3 = st.columns([3, 2, 2.2])
             with c1:
@@ -660,7 +1039,13 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
                 elif fact == "Audience":
                     _aud_count_key = f"aud_count_cond_{i}"
                     if _aud_count_key not in st.session_state:
-                        st.session_state[_aud_count_key] = 1
+                        # Auto-fill from sidebar audience on first render
+                        _sidebar_aud = test_audience_list if test_audience_list else []
+                        st.session_state[_aud_count_key] = max(1, len(_sidebar_aud))
+                        for _aj, _sv in enumerate(_sidebar_aud):
+                            _aud_init_key = f"aud_cond_{i}_{_aj}"
+                            if _aud_init_key not in st.session_state:
+                                st.session_state[_aud_init_key] = _sv
                     _aud_cond_vals = []
                     for _aj in range(st.session_state[_aud_count_key]):
                         _av = st.text_input(
@@ -686,16 +1071,14 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
                         _acct_cond_vals.append(_av)
                     value = ", ".join(v.strip() for v in _acct_cond_vals if v.strip())
                 elif fact == "User Role":
-                    _stored_role = st.session_state.get(f"val_{i}", "PRIMARY")
-                    if isinstance(_stored_role, str) and _stored_role:
-                        _default_roles = [r.strip() for r in _stored_role.split(",") if r.strip() in FACT_VALUES.get("User Role", [])]
-                    else:
-                        _default_roles = []
+                    _role_key = f"val_roles_{i}"
+                    # On first render, auto-fill from sidebar selection
+                    if _role_key not in st.session_state:
+                        st.session_state[_role_key] = [r for r in test_user_role_list if r in FACT_VALUES.get("User Role", [])]
                     _selected_roles = st.multiselect(
                         "Role(s)",
                         FACT_VALUES.get("User Role", []),
-                        default=_default_roles,
-                        key=f"val_roles_{i}",
+                        key=_role_key,
                         label_visibility="collapsed",
                     )
                     value = ", ".join(_selected_roles) if _selected_roles else ""
@@ -774,9 +1157,9 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
 
         # ── Add / Remove Condition buttons ────────────────────
         st.markdown('<div style="height:0.5rem"></div>', unsafe_allow_html=True)
-        _btn_add, _btn_rem, _ = st.columns([2, 2, 6])
+        _btn_add, _btn_rem, _ = st.columns([4, 3, 3])
         with _btn_add:
-            if st.button("＋  Add Condition", key="add_cond_btn", use_container_width=True):
+            if st.button("+ Add Condition", key="add_cond_btn", use_container_width=True):
                 if st.session_state["num_conditions"] < 20:
                     st.session_state["num_conditions"] += 1
                     st.rerun()
@@ -836,186 +1219,74 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
         # render_type_options = [...]
         # st.json(example_payload)
 
+    # ==================== DSL VALIDATOR ====================
 
-# ==================== EVALUATE (COLLAPSED) ====================
+    st.markdown('<hr style="margin:1.2rem 0 1rem 0 !important;">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🔍 DSL Validator &amp; Import</div>', unsafe_allow_html=True)
+    st.caption("Paste an existing DSL expression to validate it and auto-fill the condition builder above.")
 
-with st.expander("🧪 Evaluate & Debug  —  Development in Progress", expanded=False):
+    _val_left, _val_right = st.columns([5, 1], gap="small")
+    with _val_left:
+        dsl_input = st.text_area(
+            "DSL Expression",
+            key="dsl_validator_input",
+            placeholder='(facts.auth.user_role == "PRIMARY" && facts.client.device.os.name == "iOS")',
+            height=85,
+            label_visibility="collapsed",
+        )
+    with _val_right:
+        st.markdown('<div style="height:0.55rem"></div>', unsafe_allow_html=True)
+        _import_clicked = st.button("⬆️ Import", key="dsl_import_btn", use_container_width=True,
+                                     help="Parse the DSL and fill the condition builder",
+                                     disabled=(not bool((dsl_input or "").strip())))
 
-    # ── Section 1: Customer Profile summary ──────────────────
-    st.markdown('<div class="section-title">👤 Customer Profile (from sidebar)</div>', unsafe_allow_html=True)
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        st.info(f"**Device Make:** {test_device_make}  \n**OS:** {test_device_os}")
-    with col_b:
-        st.info(f"**Role:** {test_user_role}  \n**Multi-Account:** {test_has_multiple}")
-    with col_c:
-        st.info(f"**Account ID:** {test_account_id or '—'}  \n**Audience:** {test_audience or 'Not set'}")
+    if (dsl_input or "").strip():
+        _parsed_conds, _parsed_logic, _parse_errors, _parse_warnings = parse_dsl_to_conditions(dsl_input.strip())
 
-    # ── Section 2: Conditions summary ────────────────────────
-    st.markdown('<div class="section-title" style="margin-top:0.75rem;">📋 Active Conditions</div>', unsafe_allow_html=True)
-    for i, (f, op, v, cl) in enumerate(conditions):
-        dsl_path = FACT_DSL_MAP.get(f, f)
-        if dsl_path == "__toarray__":
-            cond_text = f"toArray({v})"
-        elif dsl_path.startswith("rule.") or dsl_path.startswith("facts.permissions.") or dsl_path in TRUTHY_FACTS:
-            cond_text = f"!{dsl_path}" if op == "is not" else dsl_path
-        elif dsl_path in ("facts.xcdp.realized", "facts.auth.user_role", "serviceAccount.id"):
-            _vals = [_v.strip() for _v in v.split(",") if _v.strip()]
-            if len(_vals) > 1:
-                _vals_str = ", ".join(f'"{_v}"' for _v in _vals)
-                _dsl_op = "!=" if op == "is not" else "=="
-                cond_text = f'{dsl_path} {_dsl_op} to_array({_vals_str})'
-            else:
-                cond_text = f'{dsl_path} {"==" if op == "is" else "!="} "{v}"'
-        elif op in COMPARISON_OP_MAP and dsl_path == "facts.client.version":
-            cond_text = f'version_compare({dsl_path}, "{v}") {COMPARISON_OP_MAP[op]} 0'
-        elif op in COMPARISON_OP_MAP:
-            cond_text = f'{dsl_path} {COMPARISON_OP_MAP[op]} "{v}"'
-        else:
-            cond_text = f'{dsl_path} {"==" if op == "is" else "!="} "{v}"'
-        join_label = f" **{cl}**" if i < len(conditions) - 1 else ""
-        st.markdown(f'`{i+1}.` `{cond_text}`{join_label}')
-
-    # ── Section 3: Rule/Permission flag overrides ─────────────
-    # Detect any rule/permission facts in the conditions that need manual simulation values
-    flag_facts_in_conditions = []
-    for fact, operator, value, _cl in conditions:
-        _dsl = FACT_DSL_MAP.get(fact, fact)
-        if (_dsl.startswith("rule.") or _dsl.startswith("facts.permissions.") or _dsl in TRUTHY_FACTS) and fact not in [
-            "Internet Backup On", "Power Backup On", "Show Line Level Experience"
-        ]:
-            if fact not in [f for f, *_ in flag_facts_in_conditions]:
-                flag_facts_in_conditions.append((fact, _dsl))
-
-    rule_flag_overrides: Dict[str, str] = {}
-    if flag_facts_in_conditions:
-        st.markdown('<div class="section-title" style="margin-top:0.75rem;">🔧 Simulate Rule / Permission Flags</div>', unsafe_allow_html=True)
-        st.caption("These facts are not in the sidebar — set their simulated value below before running.")
-        flag_cols = st.columns(min(len(flag_facts_in_conditions), 3))
-        for idx, (fact, dsl_path) in enumerate(flag_facts_in_conditions):
-            with flag_cols[idx % 3]:
-                label = fact if fact not in ("Custom Rule", "Custom Permission") else dsl_path
-                val = st.selectbox(label, ["true", "false"], key=f"flag_override_{idx}")
-                rule_flag_overrides[fact] = val
-
-    run_clicked = st.button("▶  Run Rule Check", use_container_width=True)
-
-    if run_clicked:
-        try:
-            test_values_dict = {
-                "device_make": test_device_make,
-                "device_os": test_device_os,
-                "user_role": test_user_role,
-                "account_id": test_account_id,
-                "has_multiple": test_has_multiple,
-                "audience": test_audience if test_audience else "(empty)",
-                "internet_backup": test_internet_backup,
-                "power_backup": test_power_backup,
-                "show_line_level": test_show_line_level,
-            }
-
-            results = []
-            debug_info = []
-            for fact, operator, value, _cl in conditions:
-                _dsl = FACT_DSL_MAP.get(fact, fact)
-                is_flag = _dsl.startswith("rule.") or _dsl.startswith("facts.permissions.") or _dsl in TRUTHY_FACTS
-
-                if is_flag:
-                    # Use manual override if provided, otherwise use sidebar-mapped value
-                    actual_value = rule_flag_overrides.get(fact, test_values_dict.get(fact.lower().replace(" ", "_"), "true"))
-                    # For flag facts: "is" means expect true, "is not" means expect false
-                    expected = "false" if operator == "is not" else "true"
-                    match = (actual_value == expected)
-                else:
-                    actual_value = get_test_value_for_fact(fact, test_values_dict)
-                    if fact == "Audience":
-                        _aud_parts_actual = [a.strip() for a in actual_value.split(",") if a.strip()]
-                        _aud_parts_expected = [v.strip() for v in value.split(",") if v.strip()]
-                        if operator == "is not":
-                            match = not any(v in _aud_parts_actual for v in _aud_parts_expected)
+        if _parse_errors:
+            for _err in _parse_errors:
+                st.error(f"⛔ {_err}")
+        if _parse_warnings:
+            for _warn in _parse_warnings:
+                st.warning(f"⚠️ {_warn}")
+        if not _parse_errors and _parsed_conds:
+            st.success(f"✅ Valid DSL — {len(_parsed_conds)} condition(s) found · Logic: **{_parsed_logic}**")
+            with st.expander("📋 Parsed Condition Breakdown", expanded=True):
+                for _pi, (_pf, _pop, _pv, _pcl) in enumerate(_parsed_conds):
+                    if _pi > 0:
+                        st.markdown(
+                            f'<div style="text-align:center;font-size:0.7rem;font-weight:800;'
+                            f'color:#4f46e5;letter-spacing:0.5px;margin:0.15rem 0;">── {_pcl} ──</div>',
+                            unsafe_allow_html=True
+                        )
+                    _dsl_preview = FACT_DSL_MAP.get(_pf, _pf)
+                    if _dsl_preview == "__toarray__":
+                        _expr_preview = f'toArray(facts.permissions.{_pv}) == true'
+                    elif (_dsl_preview.startswith("rule.") or _dsl_preview.startswith("facts.permissions.") or _dsl_preview in TRUTHY_FACTS) and _pv.lower() in ("true", "false"):
+                        _expr_preview = f"!{_dsl_preview}" if _pop == "is not" else _dsl_preview
+                    elif _pop in COMPARISON_OP_MAP and _dsl_preview == "facts.client.version":
+                        _expr_preview = f'version_compare({_dsl_preview}, "{_pv}") {COMPARISON_OP_MAP[_pop]} 0'
+                    elif _dsl_preview in ("facts.xcdp.realized", "facts.auth.user_role", "serviceAccount.id"):
+                        _vals_p = [v.strip() for v in _pv.split(",") if v.strip()]
+                        _dsl_op = "!=" if _pop == "is not" else "=="
+                        if len(_vals_p) > 1:
+                            _vals_p_str = ", ".join(f'"{v}"' for v in _vals_p)
+                            _expr_preview = f'{_dsl_preview} {_dsl_op} to_array({_vals_p_str})'
                         else:
-                            match = any(v in _aud_parts_actual for v in _aud_parts_expected)
-                    elif fact == "User Role":
-                        _role_parts_actual = [r.strip() for r in actual_value.split(",") if r.strip()]
-                        _role_parts_expected = [v.strip() for v in value.split(",") if v.strip()]
-                        if operator == "is not":
-                            match = not any(v in _role_parts_actual for v in _role_parts_expected)
-                        else:
-                            match = any(v in _role_parts_actual for v in _role_parts_expected)
-                    elif fact == "Service Account ID":
-                        _acct_parts_expected = [v.strip() for v in value.split(",") if v.strip()]
-                        if operator == "is not":
-                            match = actual_value not in _acct_parts_expected
-                        else:
-                            match = actual_value in _acct_parts_expected
+                            _expr_preview = f'{_dsl_preview} {_dsl_op} "{_pv.strip()}"'
                     else:
-                        match = evaluate_condition(fact, operator, value, actual_value)
+                        _dsl_op = "!=" if _pop == "is not" else (COMPARISON_OP_MAP.get(_pop, "=="))
+                        _expr_preview = f'{_dsl_preview} {_dsl_op} "{_pv}"'
+                    st.markdown(
+                        f'<div style="background:#f5f7ff;border-left:3px solid #6366f1;border-radius:0 8px 8px 0;'
+                        f'padding:0.35rem 0.75rem;font-family:monospace;font-size:0.82rem;color:#1e293b;margin-bottom:0.2rem;">'
+                        f'<span style="color:#94a3b8;margin-right:0.5rem;">#{_pi+1}</span>{_expr_preview}</div>',
+                        unsafe_allow_html=True
+                    )
 
-                results.append(match)
-                debug_info.append((fact, operator, value, actual_value, match))
-
-            # Evaluate using per-condition logic operators
-            if results:
-                final_result = results[0]
-                for idx in range(1, len(results)):
-                    cond_logic = conditions[idx][3]
-                    if cond_logic == "AND":
-                        final_result = final_result and results[idx]
-                    else:
-                        final_result = final_result or results[idx]
-            else:
-                final_result = False
-
-            pass_count = sum(results)
-            fail_count = len(results) - pass_count
-
-            col_res, col_meta = st.columns([2, 1])
-            with col_res:
-                if final_result:
-                    st.markdown("""<div class="result-pass">
-                        <div class="result-icon">✅</div>
-                        <div class="result-title">RULE MATCHED</div>
-                        <div class="result-desc">Card WILL be shown to this customer profile</div>
-                    </div>""", unsafe_allow_html=True)
-                else:
-                    st.markdown("""<div class="result-fail">
-                        <div class="result-icon">❌</div>
-                        <div class="result-title">RULE FAILED</div>
-                        <div class="result-desc">Card WILL NOT be shown to this customer profile</div>
-                    </div>""", unsafe_allow_html=True)
-
-            with col_meta:
-                st.markdown(f"""
-                <div style="padding:0.85rem;background:#f8faff;border:1px solid #e2e8f0;border-radius:12px;text-align:center;">
-                    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:0.6rem;">Summary</div>
-                    <span class="pill pill-total">{len(results)} Conditions</span><br><br>
-                    <span class="pill pill-pass">✓ {pass_count} Passed</span>&nbsp;
-                    <span class="pill pill-fail">✗ {fail_count} Failed</span>
-                </div>""", unsafe_allow_html=True)
-
-            st.markdown("##### 📄 Generated DSL")
-            try:
-                dsl_expr = generate_dsl(conditions, logic)
-                st.code(dsl_expr, language="javascript")
-            except ValueError as e:
-                st.error(f"⚠️ {str(e)}")
-
-            st.markdown("##### 🔍 Condition-by-Condition Result")
-            for i, (fact, operator, value, actual, matched) in enumerate(debug_info):
-                css_class = "debug-pass" if matched else "debug-fail"
-                icon = "✅" if matched else "❌"
-                _dsl_p = FACT_DSL_MAP.get(fact, fact)
-                is_flag = _dsl_p.startswith("rule.") or _dsl_p.startswith("facts.permissions.") or _dsl_p in TRUTHY_FACTS
-                source_label = "🔧 simulated" if is_flag and fact in rule_flag_overrides else "👤 profile"
-                st.markdown(
-                    f'<div class="{css_class}">{icon} &nbsp; <b>#{i+1} {fact}</b> &nbsp; '
-                    f'<span style="opacity:0.75">{operator}</span> &nbsp; '
-                    f'<code>"{value}"</code> &nbsp;|&nbsp; '
-                    f'Actual: <code>"{actual}"</code> &nbsp;'
-                    f'<span style="font-size:0.72rem;opacity:0.65">({source_label})</span></div>',
-                    unsafe_allow_html=True
-                )
-
-        except Exception as e:
-            st.error(f"❌ Unexpected error: {str(e)}")
-            st.info("💡 Make sure all condition values are filled in before running.")
+        if _import_clicked and not _parse_errors and _parsed_conds:
+            apply_parsed_conditions_to_session(_parsed_conds, _parsed_logic)
+            st.session_state.pop("dsl_validator_input", None)
+            st.rerun()
+        elif _import_clicked and _parse_errors:
+            st.error("Cannot import — fix the errors above first.")
