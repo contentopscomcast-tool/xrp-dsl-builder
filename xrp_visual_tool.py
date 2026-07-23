@@ -130,6 +130,10 @@ def _render_login_page() -> None:
     [data-testid="stForm"] [data-testid="stAlert"] {
         border-radius: 10px !important; font-size: 0.84rem !important;
     }
+    @keyframes badgePop {
+        from { opacity:0; transform:scale(0.8) translateY(6px); }
+        to   { opacity:1; transform:scale(1) translateY(0); }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -330,12 +334,6 @@ def _render_login_page() -> None:
             </div>
         </div>
 
-        <style>
-        @keyframes badgePop {
-            from { opacity:0; transform:scale(0.8) translateY(6px); }
-            to   { opacity:1; transform:scale(1) translateY(0); }
-        }
-        </style>
         """, unsafe_allow_html=True)
 
     # ── RIGHT: login form ──────────────────────────
