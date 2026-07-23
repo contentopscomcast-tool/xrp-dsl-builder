@@ -21,7 +21,10 @@ def _check_credentials(username: str, password: str) -> bool:
     """Validate username/password against st.secrets."""
     try:
         users = st.secrets["users"]
-        return username in users and users[username] == password
+        for key in users:
+            if key.lower() == username.lower() and users[key] == password:
+                return True
+        return False
     except Exception:
         return False
 
@@ -351,7 +354,7 @@ def _render_login_page() -> None:
             </div>
             """)
 
-            username = st.text_input("Username", placeholder="Enter your username")
+            username = st.text_input("Username", placeholder="Admin")
             password = st.text_input("Password", type="password", placeholder="Enter your password")
             submitted = st.form_submit_button("Sign In →", use_container_width=True)
 
