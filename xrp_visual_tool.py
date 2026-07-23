@@ -15,6 +15,371 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ==================== AUTH ====================
+
+def _check_credentials(username: str, password: str) -> bool:
+    """Validate username/password against st.secrets."""
+    try:
+        users = st.secrets["users"]
+        return username in users and users[username] == password
+    except Exception:
+        return False
+
+
+def _render_login_page() -> None:
+    """Render the full-screen login page."""
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
+    * { font-family: inherit; }
+
+    section[data-testid="stSidebar"] { display: none !important; }
+    header[data-testid="stHeader"]   { display: none !important; }
+    #MainMenu, footer                { display: none !important; }
+
+    /* Full-bleed gradient backdrop */
+    html, body, .stApp,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stAppViewBlockContainer"],
+    .main, .main > div {
+        background: linear-gradient(135deg, #0f0c29 0%, #1e1b4b 25%, #312e81 55%, #4f46e5 80%, #6366f1 100%) !important;
+        min-height: 100vh !important;
+    }
+
+    /* Animated orbs */
+    [data-testid="stAppViewContainer"]::before,
+    [data-testid="stAppViewContainer"]::after {
+        content: ''; position: fixed; border-radius: 50%;
+        filter: blur(90px); opacity: 0.3; pointer-events: none; z-index: 0;
+        animation: floatOrb 9s ease-in-out infinite alternate;
+    }
+    [data-testid="stAppViewContainer"]::before {
+        width: 560px; height: 560px;
+        background: radial-gradient(circle, #818cf8, #4f46e5);
+        top: -140px; left: -120px;
+    }
+    [data-testid="stAppViewContainer"]::after {
+        width: 420px; height: 420px;
+        background: radial-gradient(circle, #a78bfa, #7c3aed);
+        bottom: -100px; right: -80px; animation-delay: -4.5s;
+    }
+    @keyframes floatOrb {
+        0%   { transform: translate(0,0) scale(1); }
+        100% { transform: translate(35px,45px) scale(1.1); }
+    }
+
+    .block-container {
+        max-width: 980px !important;
+        padding-top: 6vh !important;
+        padding-bottom: 2rem !important;
+        margin: 0 auto !important;
+        position: relative; z-index: 1;
+    }
+
+    /* ── RIGHT PANEL / FORM ───────────────────────── */
+    [data-testid="stForm"] {
+        background: rgba(255,255,255,0.97) !important;
+        backdrop-filter: blur(20px) !important;
+        border-radius: 28px !important;
+        padding: 2.8rem 2.6rem 2.2rem 2.6rem !important;
+        box-shadow: 0 30px 70px rgba(0,0,0,0.45),
+                    0 0 0 1px rgba(255,255,255,0.18),
+                    inset 0 1px 0 rgba(255,255,255,0.9) !important;
+        border: none !important;
+    }
+    [data-testid="stForm"] label {
+        font-weight: 600 !important; font-size: 0.83rem !important;
+        color: #374151 !important; letter-spacing: 0.2px !important;
+    }
+    [data-testid="stForm"] input[type="text"],
+    [data-testid="stForm"] input[type="password"] {
+        border: 1.5px solid #e2e8f0 !important; border-radius: 12px !important;
+        padding: 0.68rem 0.95rem !important; font-size: 0.92rem !important;
+        background: #f8fafc !important;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    [data-testid="stForm"] input[type="text"]:focus,
+    [data-testid="stForm"] input[type="password"]:focus {
+        border-color: #6366f1 !important;
+        box-shadow: 0 0 0 3.5px rgba(99,102,241,0.18) !important;
+        background: #fff !important;
+    }
+    [data-testid="stForm"] [data-testid="stFormSubmitButton"] {
+        margin-top: 1.3rem !important; position: relative !important;
+    }
+    [data-testid="stForm"] small,
+    [data-testid="stForm"] .stFormSubmitButton ~ small,
+    small.st-emotion-cache-ztfqz8,
+    p.st-emotion-cache-ztfqz8 { display: none !important; }
+    [data-testid="stForm"] .stFormSubmitButton > button {
+        background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%) !important;
+        color: white !important; border: none !important;
+        border-radius: 12px !important; font-weight: 700 !important;
+        font-size: 0.96rem !important; width: 100% !important;
+        padding: 0.72rem 1rem !important; letter-spacing: 0.3px !important;
+        transition: all 0.18s ease !important;
+        box-shadow: 0 4px 18px rgba(99,102,241,0.4) !important;
+    }
+    [data-testid="stForm"] .stFormSubmitButton > button:hover {
+        filter: brightness(1.1) !important;
+        box-shadow: 0 10px 30px rgba(99,102,241,0.55) !important;
+        transform: translateY(-2px) !important;
+    }
+    [data-testid="stForm"] [data-testid="stAlert"] {
+        border-radius: 10px !important; font-size: 0.84rem !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    left_col, right_col = st.columns([1.25, 1], gap="large")
+
+    # ── LEFT: illustrated product mockup ──────────
+    with left_col:
+        st.markdown("""
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:1rem 0;">
+
+            <!-- glow ring behind mockup -->
+            <div style="position:relative;width:100%;max-width:480px;">
+                <div style="position:absolute;inset:-30px;background:radial-gradient(ellipse at 50% 50%,rgba(99,102,241,0.35) 0%,transparent 70%);border-radius:50%;filter:blur(30px);z-index:0;"></div>
+
+                <!-- App window mockup -->
+                <svg viewBox="0 0 480 360" xmlns="http://www.w3.org/2000/svg" style="width:100%;position:relative;z-index:1;filter:drop-shadow(0 24px 48px rgba(0,0,0,0.5));">
+                  <defs>
+                    <linearGradient id="winGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#1e1b4b"/>
+                      <stop offset="100%" stop-color="#0f0c29"/>
+                    </linearGradient>
+                    <linearGradient id="btnGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stop-color="#4338ca"/>
+                      <stop offset="100%" stop-color="#6366f1"/>
+                    </linearGradient>
+                    <linearGradient id="sideGrad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stop-color="#1e1b4b"/>
+                      <stop offset="100%" stop-color="#272462"/>
+                    </linearGradient>
+                    <linearGradient id="cardBorder" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.8"/>
+                      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0.3"/>
+                    </linearGradient>
+                    <filter id="glow">
+                      <feGaussianBlur stdDeviation="3" result="blur"/>
+                      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                    <clipPath id="winClip">
+                      <rect x="0" y="0" width="480" height="360" rx="16"/>
+                    </clipPath>
+                  </defs>
+
+                  <!-- Window background -->
+                  <rect width="480" height="360" rx="16" fill="url(#winGrad)" clip-path="url(#winClip)"/>
+
+                  <!-- Title bar -->
+                  <rect x="0" y="0" width="480" height="38" fill="#312e81" rx="16"/>
+                  <rect x="0" y="22" width="480" height="16" fill="#312e81"/>
+                  <!-- Traffic lights -->
+                  <circle cx="20" cy="19" r="5.5" fill="#ff5f57"/>
+                  <circle cx="36" cy="19" r="5.5" fill="#febc2e"/>
+                  <circle cx="52" cy="19" r="5.5" fill="#28c840"/>
+                  <!-- Title -->
+                  <text x="240" y="23" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.7)" font-family="Inter,sans-serif" font-weight="600">⚡ XRP DSL Builder</text>
+                  <!-- Tab -->
+                  <rect x="80" y="10" width="110" height="18" rx="5" fill="rgba(255,255,255,0.08)"/>
+                  <text x="135" y="22" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.5)" font-family="Inter,sans-serif">🧩 Build Rule</text>
+
+                  <!-- Sidebar -->
+                  <rect x="0" y="38" width="108" height="322" fill="url(#sideGrad)"/>
+                  <rect x="107" y="38" width="1" height="322" fill="rgba(99,102,241,0.2)"/>
+                  <!-- Sidebar logo -->
+                  <rect x="14" y="52" width="80" height="28" rx="8" fill="rgba(99,102,241,0.15)" stroke="rgba(99,102,241,0.3)" stroke-width="1"/>
+                  <text x="54" y="70" text-anchor="middle" font-size="9" fill="#a5b4fc" font-family="Inter,sans-serif" font-weight="700">👤 Profile</text>
+                  <!-- Sidebar fields -->
+                  <rect x="14" y="90" width="80" height="7" rx="3.5" fill="rgba(255,255,255,0.12)"/>
+                  <rect x="14" y="103" width="65" height="7" rx="3.5" fill="rgba(99,102,241,0.4)"/>
+                  <rect x="14" y="118" width="80" height="7" rx="3.5" fill="rgba(255,255,255,0.08)"/>
+                  <rect x="14" y="131" width="55" height="7" rx="3.5" fill="rgba(255,255,255,0.08)"/>
+                  <rect x="14" y="148" width="80" height="1" fill="rgba(255,255,255,0.08)"/>
+                  <!-- Active profile card -->
+                  <rect x="14" y="158" width="80" height="70" rx="8" fill="rgba(14,165,233,0.1)" stroke="rgba(14,165,233,0.25)" stroke-width="1"/>
+                  <text x="54" y="173" text-anchor="middle" font-size="7" fill="#38bdf8" font-family="Inter,sans-serif" font-weight="700">📊 Active Profile</text>
+                  <rect x="22" y="180" width="55" height="5" rx="2.5" fill="rgba(255,255,255,0.12)"/>
+                  <rect x="22" y="190" width="45" height="5" rx="2.5" fill="rgba(255,255,255,0.12)"/>
+                  <rect x="22" y="200" width="60" height="5" rx="2.5" fill="rgba(255,255,255,0.12)"/>
+                  <rect x="22" y="210" width="50" height="5" rx="2.5" fill="rgba(255,255,255,0.12)"/>
+
+                  <!-- Main content area -->
+                  <!-- Header -->
+                  <rect x="118" y="48" width="352" height="36" rx="10" fill="rgba(79,70,229,0.25)" stroke="rgba(99,102,241,0.3)" stroke-width="1"/>
+                  <text x="128" y="70" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="800">⚡ XRP DSL Builder</text>
+                  <rect x="390" y="56" width="72" height="20" rx="10" fill="rgba(99,102,241,0.3)" stroke="rgba(99,102,241,0.5)" stroke-width="1"/>
+                  <text x="426" y="69" text-anchor="middle" font-size="7" fill="#c7d2fe" font-family="Inter,sans-serif" font-weight="700">VISUAL RULE ENGINE</text>
+
+                  <!-- Section label -->
+                  <text x="128" y="104" font-size="7.5" fill="#6366f1" font-family="Inter,sans-serif" font-weight="800" letter-spacing="1">📋  CONDITIONS</text>
+                  <rect x="182" y="100" width="278" height="1" fill="rgba(99,102,241,0.2)"/>
+
+                  <!-- AND/OR radio -->
+                  <rect x="128" y="110" width="100" height="16" rx="8" fill="rgba(99,102,241,0.1)" stroke="rgba(99,102,241,0.2)" stroke-width="1"/>
+                  <rect x="130" y="112" width="40" height="12" rx="6" fill="url(#btnGrad)"/>
+                  <text x="150" y="121" text-anchor="middle" font-size="7" fill="white" font-family="Inter,sans-serif" font-weight="700">AND</text>
+                  <text x="195" y="121" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.5)" font-family="Inter,sans-serif">OR</text>
+
+                  <!-- Condition Card 1 -->
+                  <rect x="118" y="134" width="230" height="56" rx="10" fill="white" stroke="#e0e7ff" stroke-width="1"/>
+                  <rect x="118" y="134" width="4" height="56" rx="2" fill="#6366f1"/>
+                  <circle cx="134" cy="152" r="8" fill="url(#btnGrad)" filter="url(#glow)"/>
+                  <text x="134" y="156" text-anchor="middle" font-size="7" fill="white" font-family="Inter,sans-serif" font-weight="800">1</text>
+                  <rect x="148" y="146" width="55" height="7" rx="3.5" fill="#e0e7ff"/>
+                  <rect x="210" y="146" width="30" height="7" rx="3.5" fill="#ede9fe"/>
+                  <rect x="247" y="146" width="45" height="7" rx="3.5" fill="#e0e7ff"/>
+                  <rect x="148" y="160" width="45" height="6" rx="3" fill="#ede9fe"/>
+                  <rect x="200" y="160" width="60" height="6" rx="3" fill="#f0fdf4"/>
+                  <!-- DSL snippet -->
+                  <rect x="128" y="175" width="210" height="10" rx="5" fill="#f8fafc" stroke="#e0e7ff" stroke-width="1"/>
+                  <rect x="132" y="178" width="80" height="4" rx="2" fill="#93c5fd"/>
+                  <rect x="218" y="178" width="50" height="4" rx="2" fill="#86efac"/>
+
+                  <!-- AND pill -->
+                  <rect x="213" y="196" width="36" height="13" rx="6.5" fill="#ede9fe" stroke="#c4b5fd" stroke-width="1"/>
+                  <text x="231" y="205" text-anchor="middle" font-size="7" fill="#5b21b6" font-family="Inter,sans-serif" font-weight="800">AND</text>
+
+                  <!-- Condition Card 2 -->
+                  <rect x="118" y="214" width="230" height="56" rx="10" fill="white" stroke="#e0e7ff" stroke-width="1"/>
+                  <rect x="118" y="214" width="4" height="56" rx="2" fill="#818cf8"/>
+                  <circle cx="134" cy="232" r="8" fill="url(#btnGrad)"/>
+                  <text x="134" y="236" text-anchor="middle" font-size="7" fill="white" font-family="Inter,sans-serif" font-weight="800">2</text>
+                  <rect x="148" y="226" width="65" height="7" rx="3.5" fill="#e0e7ff"/>
+                  <rect x="220" y="226" width="25" height="7" rx="3.5" fill="#ede9fe"/>
+                  <rect x="252" y="226" width="40" height="7" rx="3.5" fill="#e0e7ff"/>
+                  <rect x="148" y="240" width="100" height="6" rx="3" fill="#ede9fe"/>
+                  <rect x="128" y="255" width="210" height="10" rx="5" fill="#f8fafc" stroke="#e0e7ff" stroke-width="1"/>
+                  <rect x="132" y="258" width="120" height="4" rx="2" fill="#86efac"/>
+
+                  <!-- DSL Output panel (right) -->
+                  <rect x="358" y="90" width="112" height="190" rx="10" fill="rgba(0,0,0,0.5)" stroke="rgba(99,102,241,0.3)" stroke-width="1"/>
+                  <text x="368" y="107" font-size="7" fill="#a5b4fc" font-family="monospace,sans-serif" font-weight="700">⚡ DSL Output</text>
+                  <rect x="362" y="112" width="104" height="1" fill="rgba(255,255,255,0.1)"/>
+                  <!-- Code lines -->
+                  <rect x="366" y="120" width="70" height="5" rx="2.5" fill="#79c0ff" opacity="0.7"/>
+                  <rect x="366" y="130" width="85" height="5" rx="2.5" fill="#a5d6a7" opacity="0.7"/>
+                  <rect x="366" y="140" width="60" height="5" rx="2.5" fill="#79c0ff" opacity="0.7"/>
+                  <rect x="366" y="150" width="92" height="5" rx="2.5" fill="#ffd180" opacity="0.7"/>
+                  <rect x="366" y="160" width="78" height="5" rx="2.5" fill="#a5d6a7" opacity="0.7"/>
+                  <rect x="366" y="170" width="65" height="5" rx="2.5" fill="#79c0ff" opacity="0.7"/>
+                  <rect x="366" y="180" width="88" height="5" rx="2.5" fill="#ffd180" opacity="0.7"/>
+                  <rect x="366" y="190" width="72" height="5" rx="2.5" fill="#a5d6a7" opacity="0.7"/>
+                  <!-- Cursor blink -->
+                  <rect x="366" y="202" width="2" height="9" rx="1" fill="#6366f1">
+                    <animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite"/>
+                  </rect>
+                  <!-- Copy button -->
+                  <rect x="362" y="252" width="104" height="20" rx="7" fill="url(#btnGrad)" opacity="0.9"/>
+                  <text x="414" y="265" text-anchor="middle" font-size="8" fill="white" font-family="Inter,sans-serif" font-weight="700">📋 Copy DSL</text>
+
+                  <!-- Bottom stats bar -->
+                  <rect x="118" y="298" width="342" height="38" rx="10" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                  <!-- Stat 1 -->
+                  <text x="160" y="312" text-anchor="middle" font-size="11" fill="#e0e7ff" font-family="Inter,sans-serif" font-weight="800">2</text>
+                  <text x="160" y="327" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.4)" font-family="Inter,sans-serif">Conditions</text>
+                  <rect x="205" y="306" width="1" height="22" fill="rgba(255,255,255,0.1)"/>
+                  <!-- Stat 2 -->
+                  <text x="248" y="312" text-anchor="middle" font-size="9" fill="#e0e7ff" font-family="Inter,sans-serif" font-weight="800">AND</text>
+                  <text x="248" y="327" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.4)" font-family="Inter,sans-serif">Logic</text>
+                  <rect x="295" y="306" width="1" height="22" fill="rgba(255,255,255,0.1)"/>
+                  <!-- Stat 3 -->
+                  <circle cx="338" cy="315" r="7" fill="#22c55e" opacity="0.2"/>
+                  <circle cx="338" cy="315" r="4" fill="#22c55e"/>
+                  <text x="360" y="312" font-size="9" fill="#e0e7ff" font-family="Inter,sans-serif" font-weight="700">DSL Ready</text>
+                  <text x="360" y="326" font-size="7" fill="rgba(255,255,255,0.4)" font-family="Inter,sans-serif">✓ Valid expression</text>
+
+                  <!-- Floating badge top-right -->
+                  <rect x="330" y="52" width="50" height="18" rx="9" fill="#22c55e" opacity="0.15" stroke="#22c55e" stroke-width="1" stroke-opacity="0.4"/>
+                  <circle cx="341" cy="61" r="3" fill="#22c55e"/>
+                  <text x="358" y="65" text-anchor="middle" font-size="7" fill="#86efac" font-family="Inter,sans-serif" font-weight="700">LIVE</text>
+                </svg>
+
+                <!-- Floating decorative badges -->
+                <div style="position:absolute;top:-12px;right:-10px;
+                    background:linear-gradient(135deg,#4338ca,#6366f1);
+                    color:white;font-size:0.7rem;font-weight:700;
+                    padding:0.35rem 0.8rem;border-radius:20px;
+                    box-shadow:0 4px 16px rgba(99,102,241,0.5);
+                    border:1px solid rgba(255,255,255,0.2);
+                    animation:badgePop 0.6s ease 0.5s both;">
+                    ⚡ Visual Rule Engine
+                </div>
+                <div style="position:absolute;bottom:8px;left:-14px;
+                    background:rgba(34,197,94,0.15);
+                    border:1px solid rgba(34,197,94,0.4);
+                    color:#86efac;font-size:0.68rem;font-weight:700;
+                    padding:0.3rem 0.75rem;border-radius:20px;
+                    backdrop-filter:blur(10px);
+                    animation:badgePop 0.6s ease 1s both;">
+                    ✓ DSL Generated
+                </div>
+            </div>
+
+            <div style="text-align:center;margin-top:1.6rem;">
+                <div style="color:rgba(255,255,255,0.85);font-size:1.15rem;font-weight:800;letter-spacing:-0.4px;margin-bottom:0.35rem;">
+                    Build Targeting Rules Visually
+                </div>
+                <div style="color:rgba(255,255,255,0.45);font-size:0.8rem;line-height:1.6;max-width:320px;margin:0 auto;">
+                    Point-and-click rule builder that generates XRP DSL expressions instantly — no coding required.
+                </div>
+            </div>
+        </div>
+
+        <style>
+        @keyframes badgePop {
+            from { opacity:0; transform:scale(0.8) translateY(6px); }
+            to   { opacity:1; transform:scale(1) translateY(0); }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+    # ── RIGHT: login form ──────────────────────────
+    with right_col:
+        with st.form("login_form", clear_on_submit=False):
+            st.markdown("""
+            <div style="text-align:center; margin-bottom:1.8rem;">
+                <div style="display:inline-flex;align-items:center;justify-content:center;
+                    width:62px;height:62px;border-radius:18px;margin-bottom:1rem;
+                    background:linear-gradient(135deg,#4338ca,#6366f1);
+                    box-shadow:0 8px 24px rgba(99,102,241,0.45);font-size:1.9rem;">⚡</div>
+                <div style="font-size:1.55rem;font-weight:800;color:#1e1b4b;letter-spacing:-0.6px;margin-bottom:0.35rem;">XRP Visual Tool</div>
+                <div style="font-size:0.83rem;color:#64748b;font-weight:400;">Sign in to access the rule builder</div>
+                <hr style="margin:1.4rem 0 0.6rem 0;border:none;border-top:1px solid #e2e8f0;">
+            </div>
+            """, unsafe_allow_html=True)
+
+            username = st.text_input("Username", placeholder="Enter your username")
+            password = st.text_input("Password", type="password", placeholder="Enter your password")
+            submitted = st.form_submit_button("Sign In →", use_container_width=True)
+
+            if submitted:
+                if not username or not password:
+                    st.error("Please enter both username and password.")
+                elif _check_credentials(username.strip(), password):
+                    st.session_state["authenticated"] = True
+                    st.session_state["logged_in_user"] = username.strip()
+                    st.rerun()
+                else:
+                    st.error("Incorrect username or password. Please try again.")
+
+            st.markdown("""
+            <div style="text-align:center;font-size:0.72rem;color:#94a3b8;margin-top:1.4rem;line-height:1.7;">
+                🔒 Access restricted to authorized personnel only.<br>
+                Contact your administrator if you need access.
+            </div>
+            """, unsafe_allow_html=True)
+
+
+# Gate: show login if not authenticated
+if not st.session_state.get("authenticated", False):
+    _render_login_page()
+    st.stop()
+
 # ==================== CUSTOM CSS ====================
 
 st.markdown("""
@@ -803,6 +1168,21 @@ with st.sidebar:
     </div>
     <hr style="margin:0.75rem 0 1rem 0 !important;">
     """, unsafe_allow_html=True)
+
+    # Logged-in user + sign out
+    _logged_user = st.session_state.get("logged_in_user", "User")
+    st.markdown(
+        f'<div style="display:flex;align-items:center;justify-content:space-between;'
+        f'background:#f0f4ff;border:1px solid #e0e7ff;border-radius:10px;'
+        f'padding:0.5rem 0.75rem;margin-bottom:0.75rem;">'
+        f'<span style="font-size:0.8rem;font-weight:600;color:#3730a3;">👤 {_logged_user}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    if st.button("🚪 Sign Out", use_container_width=True, key="signout_btn"):
+        st.session_state["authenticated"] = False
+        st.session_state["logged_in_user"] = ""
+        st.rerun()
 
     st.markdown('<div class="sidebar-card-title">👤 Customer Profile</div>', unsafe_allow_html=True)
     test_device_make_list = st.multiselect("Device Make", ["Samsung", "Apple", "Google", "Motorola", "Other"], default=["Samsung"], key="device_make_ms", help="Select one or more device makes")
