@@ -28,7 +28,7 @@ def _check_credentials(username: str, password: str) -> bool:
 
 def _render_login_page() -> None:
     """Render the full-screen login page."""
-    st.markdown("""
+    st.html("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
@@ -135,13 +135,13 @@ def _render_login_page() -> None:
         to   { opacity:1; transform:scale(1) translateY(0); }
     }
     </style>
-    """, unsafe_allow_html=True)
+    """)
 
     left_col, right_col = st.columns([1.25, 1], gap="large")
 
     # ── LEFT: illustrated product mockup ──────────
     with left_col:
-        st.markdown("""
+        st.html("""
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:1rem 0;">
 
             <!-- glow ring behind mockup -->
@@ -334,12 +334,12 @@ def _render_login_page() -> None:
             </div>
         </div>
 
-        """, unsafe_allow_html=True)
+        """)
 
     # ── RIGHT: login form ──────────────────────────
     with right_col:
         with st.form("login_form", clear_on_submit=False):
-            st.markdown("""
+            st.html("""
             <div style="text-align:center; margin-bottom:1.8rem;">
                 <div style="display:inline-flex;align-items:center;justify-content:center;
                     width:62px;height:62px;border-radius:18px;margin-bottom:1rem;
@@ -349,7 +349,7 @@ def _render_login_page() -> None:
                 <div style="font-size:0.83rem;color:#64748b;font-weight:400;">Sign in to access the rule builder</div>
                 <hr style="margin:1.4rem 0 0.6rem 0;border:none;border-top:1px solid #e2e8f0;">
             </div>
-            """, unsafe_allow_html=True)
+            """)
 
             username = st.text_input("Username", placeholder="Enter your username")
             password = st.text_input("Password", type="password", placeholder="Enter your password")
@@ -365,12 +365,12 @@ def _render_login_page() -> None:
                 else:
                     st.error("Incorrect username or password. Please try again.")
 
-            st.markdown("""
+            st.html("""
             <div style="text-align:center;font-size:0.72rem;color:#94a3b8;margin-top:1.4rem;line-height:1.7;">
                 🔒 Access restricted to authorized personnel only.<br>
                 Contact your administrator if you need access.
             </div>
-            """, unsafe_allow_html=True)
+            """)
 
 
 # Gate: show login if not authenticated
