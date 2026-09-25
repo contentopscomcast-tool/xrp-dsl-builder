@@ -3,17 +3,99 @@ XRP Visual Rule Builder - A Streamlit application for building targeting rules v
 """
 
 from typing import List, Tuple, Dict, Union
+import base64
+import hashlib
+import hmac
 import re
 import json
 import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="XRP DSL Builder",
+    page_title="RuleForge",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+
+def _verify_password(password: str, configured_password: str) -> bool:
+    """Verify a PBKDF2 secret, with plaintext compatibility for local migration."""
+    if configured_password.startswith("pbkdf2_sha256$"):
+        try:
+            _, iterations, encoded_salt, encoded_digest = configured_password.split("$", 3)
+            digest = hashlib.pbkdf2_hmac(
+                "sha256",
+                password.encode("utf-8"),
+                base64.b64decode(encoded_salt),
+                int(iterations),
+            )
+            return hmac.compare_digest(base64.b64encode(digest).decode(), encoded_digest)
+        except (ValueError, TypeError):
+            return False
+    return hmac.compare_digest(configured_password, password)
+
+
+def _check_credentials(username: str, password: str) -> bool:
+    """Validate credentials from Streamlit secrets using constant-time comparison."""
+    try:
+        users = st.secrets["users"]
+    except Exception:
+        return False
+    for configured_username, configured_password in users.items():
+        if hmac.compare_digest(str(configured_username).lower(), username.strip().lower()) and _verify_password(password, str(configured_password)):
+            return True
+    return False
+
+
+def _quote_dsl(value: str) -> str:
+    """Quote and escape a value as a JSON-compatible DSL string literal."""
+    return json.dumps(str(value), ensure_ascii=False)
+
+
+def _render_login_page() -> None:
+    """Render the single-account login page."""
+    st.markdown(
+        """
+        <style>
+        .login-shell { max-width: 460px; margin: 12vh auto 0; text-align: center; }
+        .login-logo { font-size: 2.8rem; margin-bottom: 0.35rem; }
+        .login-title { color: #1e293b; font-size: 2rem; font-weight: 800; margin-bottom: 0.35rem; }
+        .login-subtitle { color: #64748b; font-size: 0.92rem; margin-bottom: 1.5rem; }
+        [data-testid="stForm"] { width: min(100%, 380px); max-width: 380px; box-sizing: border-box; margin: 0 auto; border: 1px solid #e0e7ff; border-radius: 16px; padding: 1.25rem 1.35rem 1.35rem; box-shadow: 0 8px 28px rgba(79,70,229,0.12); }
+        [data-testid="stForm"] input { width: 100%; box-sizing: border-box; }
+        @media (max-width: 520px) { .login-shell { margin: 7vh 1rem 0; } }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <div class="login-shell">
+            <div class="login-logo">⚡</div>
+            <div class="login-title">RuleForge</div>
+            <div class="login-subtitle">XRP Targeting Studio</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    _login_left, _login_center, _login_right = st.columns([1, 2, 1])
+    with _login_center:
+        with st.form("login_form"):
+            username = st.text_input("Username", placeholder="Admin")
+            password = st.text_input("Password", type="password", placeholder="Enter your password")
+            submitted = st.form_submit_button("Sign In", use_container_width=True)
+            if submitted:
+                if _check_credentials(username, password):
+                    st.session_state["authenticated"] = True
+                    st.session_state["logged_in_user"] = username.strip()
+                    st.rerun()
+                st.error("Incorrect username or password.")
+
+
+if not st.session_state.get("authenticated", False):
+    _render_login_page()
+    st.stop()
 
 st.markdown("""
 <style>
@@ -325,7 +407,7 @@ def generate_dsl(conditions: List[Tuple[str, str, str, str]], logic: Union[str, 
             continue
         if not value or not value.strip():
             raise ValueError(f"Empty value for fact '{fact}' — please fill in all values")
-        dsl_path = FACT_DSL_MAP.get(fact, fact)
+        dsl_path = FACT_DSL_MAP.get(fact, fact) or fact
         # toArray() special handling
         if dsl_path == "__toarray__":
             base = TO_ARRAY_FACTS.get(fact, "facts.permissions")
@@ -340,20 +422,20 @@ def generate_dsl(conditions: List[Tuple[str, str, str, str]], logic: Union[str, 
             elif dsl_path in ("facts.xcdp.realized", "facts.auth.user_role", "serviceAccount.id"):
                 _vals = [v.strip() for v in value.split(",") if v.strip()]
                 if len(_vals) > 1:
-                    _vals_str = ", ".join(f'"{v}"' for v in _vals)
+                    _vals_str = ", ".join(_quote_dsl(v) for v in _vals)
                     dsl_op = "!=" if operator == "is not" else "=="
                     dsl_expr = f'{dsl_path} {dsl_op} to_array({_vals_str})'
                 else:
                     dsl_operator = "==" if operator == "is" else "!="
-                    dsl_expr = f'{dsl_path} {dsl_operator} "{value.strip()}"'
+                    dsl_expr = f'{dsl_path} {dsl_operator} {_quote_dsl(value.strip())}'
             elif operator in COMPARISON_OP_MAP and dsl_path == "facts.client.version":
                 sym = COMPARISON_OP_MAP[operator]
-                dsl_expr = f'version_compare({dsl_path}, "{value.strip()}") {sym} 0'
+                dsl_expr = f'version_compare({dsl_path}, {_quote_dsl(value.strip())}) {sym} 0'
             elif operator in COMPARISON_OP_MAP:
-                dsl_expr = f'{dsl_path} {COMPARISON_OP_MAP[operator]} "{value.strip()}"'
+                dsl_expr = f'{dsl_path} {COMPARISON_OP_MAP[operator]} {_quote_dsl(value.strip())}'
             else:
                 dsl_operator = "==" if operator == "is" else "!="
-                dsl_expr = f'{dsl_path} {dsl_operator} "{value.strip()}"'
+                dsl_expr = f'{dsl_path} {dsl_operator} {_quote_dsl(value.strip())}'
         dsl_parts.append(dsl_expr)
 
     # Build final DSL joining with per-condition logic operators
@@ -796,7 +878,7 @@ with st.sidebar:
     st.markdown("""
     <div style="text-align:center;padding:1rem 0 0.5rem 0;">
         <div style="font-size:2rem;">⚡</div>
-        <div style="font-weight:700;font-size:1.1rem;color:#1e293b;">XRP DSL Builder</div>
+        <div style="font-weight:700;font-size:1.1rem;color:#1e293b;">RuleForge</div>
         <div style="font-size:0.75rem;color:#64748b;margin-top:0.2rem;">Test Scenario Configuration</div>
     </div>
     <hr style="margin:0.75rem 0 1rem 0 !important;">
@@ -813,6 +895,7 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     if st.button("🚪 Sign Out", use_container_width=True, key="signout_btn"):
+        st.session_state.clear()
         st.session_state["authenticated"] = False
         st.session_state["logged_in_user"] = ""
         st.rerun()
@@ -900,7 +983,7 @@ test_show_line_level = "false"
 st.markdown("""
 <div class="header-banner">
     <div class="header-left">
-        <div class="header-title">⚡ XRP DSL Builder</div>
+        <div class="header-title">⚡ RuleForge</div>
         <p class="header-sub">Build targeting rules visually &nbsp;·&nbsp; Generate DSL expressions &nbsp;·&nbsp; Test customer profiles</p>
     </div>
     <div class="header-badge">Visual Rule Engine</div>
@@ -1028,12 +1111,13 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
                     f'</div>',
                     unsafe_allow_html=True
                 )
-            with _hdr_del:
-                st.markdown('<div class="rem-cond-btn">', unsafe_allow_html=True)
-                if st.button("✕", key=f"del_cond_{i}", help=f"Remove condition {i+1}", use_container_width=True):
-                    _remove_condition(i)
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
+            if i > 0:
+                with _hdr_del:
+                    st.markdown('<div class="rem-cond-btn">', unsafe_allow_html=True)
+                    if st.button("✕", key=f"del_cond_{i}", help=f"Remove condition {i+1}", use_container_width=True):
+                        _remove_condition(i)
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
 
             c1, c2, c3 = st.columns([3, 2, 2.2])
             with c1:
@@ -1246,7 +1330,7 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
                     join_label = f" **{cl}**" if i < len(conditions) - 1 else ""
                     st.markdown(f"`{i+1}.` `{expr}`{join_label}")
                     continue
-                dsl_path = FACT_DSL_MAP.get(f, f)
+                dsl_path = FACT_DSL_MAP.get(f, f) or f
                 if dsl_path == "__toarray__":
                     base = TO_ARRAY_FACTS.get(f, "facts.permissions")
                     full_paths = _resolve_perm_paths(v, base)
@@ -1257,17 +1341,17 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
                 elif dsl_path in ("facts.xcdp.realized", "facts.auth.user_role", "serviceAccount.id"):
                     _vals = [_v.strip() for _v in v.split(",") if _v.strip()]
                     if len(_vals) > 1:
-                        _vals_str = ", ".join(f'"{_v}"' for _v in _vals)
+                        _vals_str = ", ".join(_quote_dsl(_v) for _v in _vals)
                         _dsl_op = "!=" if op == "is not" else "=="
                         expr = f'{dsl_path} {_dsl_op} to_array({_vals_str})'
                     else:
-                        expr = f'{dsl_path} {"==" if op == "is" else "!="} "{v}"'
+                        expr = f'{dsl_path} {"==" if op == "is" else "!="} {_quote_dsl(v)}'
                 elif op in COMPARISON_OP_MAP and dsl_path == "facts.client.version":
-                    expr = f'version_compare({dsl_path}, "{v}") {COMPARISON_OP_MAP[op]} 0'
+                    expr = f'version_compare({dsl_path}, {_quote_dsl(v)}) {COMPARISON_OP_MAP[op]} 0'
                 elif op in COMPARISON_OP_MAP:
-                    expr = f'{dsl_path} {COMPARISON_OP_MAP[op]} "{v}"'
+                    expr = f'{dsl_path} {COMPARISON_OP_MAP[op]} {_quote_dsl(v)}'
                 else:
-                    expr = f'{dsl_path} {"==" if op == "is" else "!="} "{v}"'
+                    expr = f'{dsl_path} {"==" if op == "is" else "!="} {_quote_dsl(v)}'
                 join_label = f" **{cl}**" if i < len(conditions) - 1 else ""
                 st.markdown(f"`{i+1}.` `{expr}`{join_label}")
         elif payload_dsl == "Invalid conditions":
@@ -1320,7 +1404,7 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
                             f'color:#4f46e5;letter-spacing:0.5px;margin:0.15rem 0;">── {_pcl} ──</div>',
                             unsafe_allow_html=True
                         )
-                    _dsl_preview = FACT_DSL_MAP.get(_pf, _pf)
+                    _dsl_preview = FACT_DSL_MAP.get(_pf, _pf) or _pf
                     if _pf.startswith("__raw__:"):
                         _expr_preview = _pf[len("__raw__:"):]
                     elif _dsl_preview == "__toarray__":
@@ -1333,13 +1417,13 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
                         _vals_p = [v.strip() for v in _pv.split(",") if v.strip()]
                         _dsl_op = "!=" if _pop == "is not" else "=="
                         if len(_vals_p) > 1:
-                            _vals_p_str = ", ".join(f'"{v}"' for v in _vals_p)
+                            _vals_p_str = ", ".join(_quote_dsl(v) for v in _vals_p)
                             _expr_preview = f'{_dsl_preview} {_dsl_op} to_array({_vals_p_str})'
                         else:
-                            _expr_preview = f'{_dsl_preview} {_dsl_op} "{_pv.strip()}"'
+                            _expr_preview = f'{_dsl_preview} {_dsl_op} {_quote_dsl(_pv.strip())}'
                     else:
                         _dsl_op = "!=" if _pop == "is not" else (COMPARISON_OP_MAP.get(_pop, "=="))
-                        _expr_preview = f'{_dsl_preview} {_dsl_op} "{_pv}"'
+                        _expr_preview = f'{_dsl_preview} {_dsl_op} {_quote_dsl(_pv)}'
                     st.markdown(
                         f'<div style="background:#f5f7ff;border-left:3px solid #6366f1;border-radius:0 8px 8px 0;'
                         f'padding:0.35rem 0.75rem;font-family:monospace;font-size:0.82rem;color:#1e293b;margin-bottom:0.2rem;">'
