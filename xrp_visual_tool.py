@@ -106,17 +106,30 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 /* Inherit Inter everywhere — but without !important so icon fonts (Material Symbols) can override */
 * { font-family: inherit; }
 
-.block-container { padding-top: 1.4rem !important; padding-bottom: 1rem !important; }
+:root {
+    --rf-ink: #102a43;
+    --rf-muted: #627d98;
+    --rf-line: #d9e2ec;
+    --rf-surface: #ffffff;
+    --rf-canvas: #f4f7fa;
+    --rf-teal: #0f766e;
+    --rf-teal-soft: #ccfbf1;
+    --rf-blue: #2563eb;
+}
+
+[data-testid="stAppViewContainer"] { background: var(--rf-canvas) !important; }
+[data-testid="stMainBlockContainer"] { max-width: 1440px !important; padding-top: 1.2rem !important; padding-bottom: 2rem !important; }
+[data-testid="stHeader"] { background: transparent !important; }
 
 /* ═══ HEADER ═══ */
 .header-banner {
-    background: linear-gradient(120deg, #312e81 0%, #4f46e5 45%, #6366f1 75%, #818cf8 100%);
-    padding: 1.2rem 2rem; border-radius: 18px; margin-bottom: 1.3rem;
-    box-shadow: 0 10px 40px rgba(79,70,229,0.28), inset 0 1px 0 rgba(255,255,255,0.12);
+    background: linear-gradient(120deg, #102a43 0%, #164e63 54%, #0f766e 100%);
+    padding: 1.15rem 1.5rem; border-radius: 14px; margin-bottom: 1.15rem;
+    box-shadow: 0 12px 28px rgba(16,42,67,0.18), inset 0 1px 0 rgba(255,255,255,0.12);
     display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;
 }
 .header-left {}
-.header-title { color: white; font-size: 1.55rem; font-weight: 800; margin: 0; letter-spacing: -0.6px; }
+.header-title { color: white; font-size: 1.45rem; font-weight: 800; margin: 0; letter-spacing: 0; }
 .header-sub { color: rgba(255,255,255,0.62); font-size: 0.81rem; margin: 0.3rem 0 0 0; font-weight: 400; }
 .header-badge {
     background: rgba(255,255,255,0.16); backdrop-filter: blur(10px);
@@ -128,23 +141,24 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 
 /* ═══ SECTION TITLE ═══ */
 .section-title {
-    font-size: 0.68rem; font-weight: 800; color: #4f46e5;
+    font-size: 0.68rem; font-weight: 800; color: var(--rf-teal);
     text-transform: uppercase; letter-spacing: 1.4px; margin-bottom: 0.8rem;
     display: flex; align-items: center; gap: 0.55rem;
 }
-.section-title::after { content: ''; flex: 1; height: 1.5px; background: linear-gradient(to right, #e0e7ff, transparent); }
+.section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(to right, var(--rf-line), transparent); }
+.workflow-step { color: var(--rf-muted); font-size: 0.65rem; font-weight: 800; letter-spacing: 1.2px; margin: 0.25rem 0 0.85rem; text-transform: uppercase; }
 
 /* ═══ CONDITION CARD ═══ */
 .condition-card {
-    background: #ffffff; border: 1px solid #e0e7ff; border-left: 4px solid #6366f1;
+    background: var(--rf-surface); border: 1px solid var(--rf-line); border-left: 4px solid var(--rf-blue);
     border-radius: 14px; padding: 1rem 1.15rem; margin-bottom: 0.45rem;
     box-shadow: 0 2px 8px rgba(99,102,241,0.07); transition: all 0.15s ease;
 }
-.condition-card:hover { box-shadow: 0 6px 24px rgba(99,102,241,0.14); border-left-color: #4f46e5; transform: translateY(-1px); }
+.condition-card:hover { box-shadow: 0 8px 24px rgba(16,42,67,0.1); border-left-color: var(--rf-teal); transform: translateY(-1px); }
 
 .cond-badge {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 23px; height: 23px; background: linear-gradient(135deg, #6366f1, #4338ca);
+    width: 23px; height: 23px; background: linear-gradient(135deg, #2563eb, #0f766e);
     color: white; border-radius: 50%; font-size: 0.69rem; font-weight: 800;
     margin-right: 0.5rem; box-shadow: 0 2px 6px rgba(99,102,241,0.45); flex-shrink: 0;
 }
@@ -172,7 +186,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 
 /* ═══ BUTTONS — primary (default) ═══ */
 .stButton > button {
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+    background: linear-gradient(135deg, #164e63 0%, #0f766e 100%) !important;
     color: white !important; border: none !important; border-radius: 9px !important;
     padding: 0.42rem 0.9rem !important; font-weight: 600 !important;
     font-size: 0.83rem !important; letter-spacing: 0.2px !important;
@@ -182,7 +196,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 }
 .stButton > button:hover {
     filter: brightness(1.1) !important;
-    box-shadow: 0 6px 20px rgba(99,102,241,0.42) !important;
+    box-shadow: 0 6px 20px rgba(15,118,110,0.3) !important;
     transform: translateY(-1px) !important;
 }
 .stButton > button p, .stButton > button span { margin: 0 !important; color: white !important; font-weight: 600 !important; }
@@ -234,15 +248,19 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 .pill-fail  { background: #fee2e2; color: #991b1b; }
 
 /* ═══ SIDEBAR ═══ */
-section[data-testid="stSidebar"] { background: #f5f7ff !important; border-right: 1.5px solid #e0e7ff !important; }
-.sidebar-card { background: white; border: 1px solid #e0e7ff; border-radius: 12px; padding: 0.8rem 0.95rem; margin-bottom: 0.5rem; box-shadow: 0 1px 4px rgba(99,102,241,0.05); }
-.sidebar-card-title { font-size: 0.67rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1.1px; color: #4f46e5; margin-bottom: 0.5rem; padding-bottom: 0.4rem; border-bottom: 1.5px solid #f0f0fc; }
+section[data-testid="stSidebar"] { background: #eef3f7 !important; border-right: 1px solid var(--rf-line) !important; }
+.sidebar-card { background: var(--rf-surface); border: 1px solid var(--rf-line); border-radius: 10px; padding: 0.8rem 0.95rem; margin-bottom: 0.5rem; box-shadow: 0 2px 8px rgba(16,42,67,0.04); }
+.sidebar-card-title { font-size: 0.67rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1.1px; color: var(--rf-teal); margin-bottom: 0.5rem; padding-bottom: 0.4rem; border-bottom: 1px solid #edf2f7; }
 
 /* ═══ MISC ═══ */
 hr { border: none !important; border-top: 1px solid #f0f0fc !important; margin: 0.75rem 0 !important; }
-.stTabs [data-baseweb="tab-list"] { background: #eeeffc; padding: 0.2rem; border-radius: 10px; gap: 0.2rem; }
+.stTabs [data-baseweb="tab-list"] { background: #e6eef2; padding: 0.2rem; border-radius: 10px; gap: 0.2rem; }
 .stTabs [data-baseweb="tab"] { border-radius: 8px !important; font-weight: 500 !important; padding: 0.3rem 1rem !important; font-size: 0.87rem !important; }
-.stTabs [aria-selected="true"] { background: white !important; box-shadow: 0 2px 8px rgba(0,0,0,0.09) !important; font-weight: 700 !important; color: #4f46e5 !important; }
+.stTabs [aria-selected="true"] { background: white !important; box-shadow: 0 2px 8px rgba(16,42,67,0.09) !important; font-weight: 700 !important; color: var(--rf-teal) !important; }
+div[data-baseweb="input"]:focus-within, div[data-baseweb="select"]:focus-within, textarea:focus {
+    border-color: var(--rf-teal) !important;
+    box-shadow: 0 0 0 2px rgba(15,118,110,0.14) !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -785,6 +803,14 @@ def _remove_condition(idx: int) -> None:
     st.session_state["num_conditions"] = n - 1
 
 
+def _reset_builder() -> None:
+    """Reset the rule builder to one blank/default condition."""
+    while st.session_state.get("num_conditions", 1) > 1:
+        _remove_condition(0)
+    _remove_condition(0)
+    st.session_state["_pending_global_logic"] = "AND"
+
+
 def apply_parsed_conditions_to_session(parsed_conditions: List[Tuple], global_logic: str) -> None:
     """Populate condition-builder session state from parsed DSL conditions."""
     # Clear previous condition keys (up to 20)
@@ -900,7 +926,8 @@ with st.sidebar:
         st.session_state["logged_in_user"] = ""
         st.rerun()
 
-    st.markdown('<div class="sidebar-card-title">👤 Customer Profile</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-card-title">🧪 Test Profile</div>', unsafe_allow_html=True)
+    st.caption("Used to evaluate the generated rule")
     test_device_make_list = st.multiselect("Device Make", ["Samsung", "Apple", "Google", "Motorola", "Other"], default=["Samsung"], key="device_make_ms", help="Select one or more device makes")
     test_device_make = ", ".join(test_device_make_list) if test_device_make_list else "Samsung"
 
@@ -999,6 +1026,7 @@ tab1, = st.tabs(["🧩 Build Rule"])
 # ==================== TAB 1: BUILD RULE ====================
 
 with tab1:
+    st.markdown('<div class="workflow-step">Step 2 · Build Rule</div>', unsafe_allow_html=True)
     with st.expander("📖 How to use the condition builder", expanded=False):
         st.markdown("""
 ### ⚡ Quick Start
@@ -1178,14 +1206,19 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
                     value = ", ".join(v.strip() for v in perm_vals if v.strip())
                 elif fact == "Audience":
                     _aud_count_key = f"aud_count_cond_{i}"
-                    if _aud_count_key not in st.session_state:
-                        # Auto-fill from sidebar audience on first render
-                        _sidebar_aud = test_audience_list if test_audience_list else []
-                        st.session_state[_aud_count_key] = max(1, len(_sidebar_aud))
-                        for _aj, _sv in enumerate(_sidebar_aud):
-                            _aud_init_key = f"aud_cond_{i}_{_aj}"
-                            if _aud_init_key not in st.session_state:
-                                st.session_state[_aud_init_key] = _sv
+                    _sidebar_aud = test_audience_list if test_audience_list else []
+                    _aud_signature_key = f"_audience_profile_signature_{i}"
+                    _aud_signature = tuple(_sidebar_aud)
+                    if st.session_state.get(_aud_signature_key) != _aud_signature:
+                        _aud_count = max(1, len(_sidebar_aud))
+                        st.session_state[_aud_count_key] = _aud_count
+                        for _aj in range(_aud_count):
+                            st.session_state[f"aud_cond_{i}_{_aj}"] = _sidebar_aud[_aj] if _aj < len(_sidebar_aud) else ""
+                        for _aj in range(_aud_count, 20):
+                            st.session_state.pop(f"aud_cond_{i}_{_aj}", None)
+                        st.session_state[_aud_signature_key] = _aud_signature
+                    if _sidebar_aud:
+                        st.caption("Synced from Test Profile")
                     _aud_cond_vals = []
                     for _aj in range(st.session_state[_aud_count_key]):
                         _av = st.text_input(
@@ -1297,7 +1330,7 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
 
         # ── Add / Remove Condition buttons ────────────────────
         st.markdown('<div style="height:0.5rem"></div>', unsafe_allow_html=True)
-        _btn_add, _btn_rem, _ = st.columns([4, 3, 3])
+        _btn_add, _btn_rem, _btn_reset = st.columns([4, 3, 3])
         with _btn_add:
             if st.button("+ Add Condition", key="add_cond_btn", use_container_width=True):
                 if st.session_state["num_conditions"] < 20:
@@ -1308,10 +1341,18 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
                 if st.button("－  Remove Last", key="rem_cond_btn", use_container_width=True):
                     st.session_state["num_conditions"] -= 1
                     st.rerun()
+        with _btn_reset:
+            st.button(
+                "↺  Reset Rule",
+                key="reset_rule_btn",
+                use_container_width=True,
+                on_click=_reset_builder,
+            )
 
         logic = global_logic
 
     with col_preview:
+        st.markdown('<div class="workflow-step">Step 3 · Preview and Validate</div>', unsafe_allow_html=True)
         st.markdown('<div class="section-title">⚡ Live DSL Preview</div>', unsafe_allow_html=True)
         try:
             live_dsl = generate_dsl(conditions, logic)
@@ -1320,9 +1361,29 @@ Facts under `rule.*` or `facts.permissions.*` are **boolean flags** — no value
             live_dsl = ""
             payload_dsl = "Invalid conditions"
         if live_dsl:
-            st.markdown(f'<div class="dsl-box">{live_dsl}</div>', unsafe_allow_html=True)
-            with st.expander("📋 Copy DSL", expanded=False):
-                st.code(live_dsl, language="javascript")
+            st.code(live_dsl, language="javascript")
+            export_payload = {
+                "tool": "RuleForge",
+                "dsl": live_dsl,
+                "logic": logic,
+                "conditions": [
+                    {
+                        "fact": fact,
+                        "operator": operator,
+                        "value": value,
+                        "join": cond_logic,
+                    }
+                    for fact, operator, value, cond_logic in conditions
+                ],
+            }
+            st.download_button(
+                "Download Rule JSON",
+                data=json.dumps(export_payload, indent=2),
+                file_name="ruleforge-rule.json",
+                mime="application/json",
+                use_container_width=True,
+                key="download_rule_json",
+            )
             st.markdown("**Condition Breakdown**")
             for i, (f, op, v, cl) in enumerate(conditions):
                 if f.startswith("__raw__:"):
